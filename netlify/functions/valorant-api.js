@@ -3,7 +3,7 @@ exports.handler = async (event, context) => {
   // Only allow specific origins (your domain)
   const allowedOrigins = [
     'http://localhost:8888',
-    'https://yourdomain.netlify.app', // Replace with your actual domain
+    'https://valorant-match-predictor.netlify.app/test.html'
   ];
   
   const origin = event.headers.origin;
