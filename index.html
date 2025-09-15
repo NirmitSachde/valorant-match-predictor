@@ -2258,37 +2258,263 @@
                 button.textContent = 'Calculating...';
                 button.disabled = true;
 
+                // Normalize weights to sum to 1
                 const totalWeight = Object.values(appData.weights).reduce((a, b) => a + b, 0);
                 const normalizedWeights = {};
                 Object.keys(appData.weights).forEach(key => {
                     normalizedWeights[key] = appData.weights[key] / totalWeight;
                 });
 
-                const requestData = {
-                    team_a: appData.selectedMyTeam,
-                    team_b: appData.selectedOppTeam,
-                    map: appData.selectedMap,
-                    consider_synergy: normalizedWeights.playerSynergy > 0,
-                    consider_roles: normalizedWeights.roleComposition > 0
+                // Initialize factor scores
+                let factorScores = {
+                    teamMatchup: 0.5,
+                    playerSynergy: 0.5,
+                    mapAdvantage: 0.5,
+                    roleComposition: 0.5,
+                    agentSelection: 0.5,
+                    individualForm: 0.5
                 };
 
-                const data = await apiCall('/predict/final-outcome', {
-                    method: 'POST',
-                    body: JSON.stringify(requestData)
+                // 1. Calculate Team Matchup (base prediction from API)
+                try {
+                    const baseRequest = {
+                        team_a: appData.selectedMyTeam,
+                        team_b: appData.selectedOppTeam,
+                        map: appData.selectedMap,
+                        consider_synergy: false,
+                        consider_roles: false
+                    };
+                    
+                    const basePrediction = await apiCall('/predict/final-outcome', {
+                        method: 'POST',
+                        body: JSON.stringify(baseRequest)
+                    });
+                    
+                    if (basePrediction.success) {
+                        factorScores.teamMatchup = basePrediction.data.final_win_probability;
+                    }
+                } catch (e) {
+                    console.error('Team matchup calculation failed:', e);
+                }
+
+                // 2. Calculate Player Synergy Score
+                if (appData.teamStats.myTeam && appData.teamStats.oppTeam) {
+                    const mySynergy = (appData.teamStats.myTeam.teamSynergy + appData.teamStats.myTeam.pairSynergy) / 2;
+                    const oppSynergy = (appData.teamStats.oppTeam.teamSynergy + appData.teamStats.oppTeam.pairSynergy) / 2;
+                    
+                    // Convert relative synergy to win probability
+                    const synergyDiff = mySynergy - oppSynergy;
+                    factorScores.playerSynergy = 0.5 + (synergyDiff * 0.5); // Scale difference to 0-1
+                }
+
+                // 3. Calculate Map Advantage
+                try {
+                    // Get my team's map preference
+                    const myMapData = await apiCall('/team-map-preference', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            team: appData.selectedMyTeam,
+                            players: appData.myTeamPlayers,
+                            available_maps: [appData.selectedMap]
+                        })
+                    });
+                    
+                    const oppMapData = await apiCall('/team-map-preference', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            team: appData.selectedOppTeam,
+                            players: appData.oppTeamPlayers,
+                            available_maps: [appData.selectedMap]
+                        })
+                    });
+                    
+                    let myMapWR = 50;
+                    let oppMapWR = 50;
+                    
+                    if (myMapData.success && myMapData.data.map_preferences) {
+                        const mapPref = myMapData.data.map_preferences.find(([map, _]) => map === appData.selectedMap);
+                        if (mapPref) myMapWR = mapPref[1];
+                    }
+                    
+                    if (oppMapData.success && oppMapData.data.map_preferences) {
+                        const mapPref = oppMapData.data.map_preferences.find(([map, _]) => map === appData.selectedMap);
+                        if (mapPref) oppMapWR = mapPref[1];
+                    }
+                    
+                    // Calculate relative advantage
+                    const mapAdvDiff = (myMapWR - oppMapWR) / 100;
+                    factorScores.mapAdvantage = 0.5 + (mapAdvDiff * 0.5);
+                    
+                } catch (e) {
+                    console.error('Map advantage calculation failed:', e);
+                }
+
+                // 4. Calculate Role Composition Score
+                if (appData.actualRoleCompositions) {
+                    const idealComp = { Duelist: 1, Initiator: 2, Controller: 1, Sentinel: 1 };
+                    
+                    const calculateRoleScore = (comp) => {
+                        let score = 0;
+                        let totalDiff = 0;
+                        
+                        Object.keys(idealComp).forEach(role => {
+                            const diff = Math.abs((comp[role] || 0) - idealComp[role]);
+                            totalDiff += diff;
+                        });
+                        
+                        // Convert difference to score (0 diff = 1.0, 5 diff = 0.5)
+                        score = Math.max(0.3, 1 - (totalDiff * 0.1));
+                        
+                        // Bonus for having at least 1 of each critical role
+                        if (comp.Controller >= 1 && comp.Initiator >= 1) {
+                            score += 0.1;
+                        }
+                        
+                        return Math.min(1, score);
+                    };
+                    
+                    const myRoleScore = calculateRoleScore(appData.actualRoleCompositions.myTeam);
+                    const oppRoleScore = calculateRoleScore(appData.actualRoleCompositions.oppTeam);
+                    
+                    const roleDiff = myRoleScore - oppRoleScore;
+                    factorScores.roleComposition = 0.5 + (roleDiff * 0.5);
+                }
+
+                // 5. Calculate Agent Selection Score (based on player comfort with selected agents)
+                let myAgentScore = 0;
+                let oppAgentScore = 0;
+                let myAgentCount = 0;
+                let oppAgentCount = 0;
+                
+                for (let i = 0; i < 5; i++) {
+                    if (appData.myTeamAgents[i] && appData.myTeamPlayers[i]) {
+                        try {
+                            const playerStats = await apiCall(`/player-stats/${encodeURIComponent(appData.myTeamPlayers[i])}`);
+                            if (playerStats.success && playerStats.data.agents) {
+                                const agentData = playerStats.data.agents[appData.myTeamAgents[i].toLowerCase()];
+                                if (agentData) {
+                                    // Score based on games played and win rate
+                                    const games = Math.min(agentData.games, 50) / 50; // Normalize to 0-1
+                                    const winRate = agentData.win_rate / 100;
+                                    myAgentScore += (games * 0.3 + winRate * 0.7);
+                                    myAgentCount++;
+                                }
+                            }
+                        } catch (e) {
+                            // Silent fail
+                        }
+                    }
+                    
+                    if (appData.oppTeamAgents[i] && appData.oppTeamPlayers[i]) {
+                        try {
+                            const playerStats = await apiCall(`/player-stats/${encodeURIComponent(appData.oppTeamPlayers[i])}`);
+                            if (playerStats.success && playerStats.data.agents) {
+                                const agentData = playerStats.data.agents[appData.oppTeamAgents[i].toLowerCase()];
+                                if (agentData) {
+                                    const games = Math.min(agentData.games, 50) / 50;
+                                    const winRate = agentData.win_rate / 100;
+                                    oppAgentScore += (games * 0.3 + winRate * 0.7);
+                                    oppAgentCount++;
+                                }
+                            }
+                        } catch (e) {
+                            // Silent fail
+                        }
+                    }
+                }
+                
+                if (myAgentCount > 0) myAgentScore /= myAgentCount;
+                if (oppAgentCount > 0) oppAgentScore /= oppAgentCount;
+                
+                const agentDiff = myAgentScore - oppAgentScore;
+                factorScores.agentSelection = 0.5 + (agentDiff * 0.5);
+
+                // 6. Calculate Individual Form Score
+                if (appData.teamStats.myTeam && appData.teamStats.oppTeam) {
+                    const myRating = appData.teamStats.myTeam.avgRating || 1.0;
+                    const oppRating = appData.teamStats.oppTeam.avgRating || 1.0;
+                    
+                    // Include recent form if available
+                    let myFormBonus = 0;
+                    let oppFormBonus = 0;
+                    
+                    if (appData.playerPerformance.myTeam) {
+                        const forms = appData.playerPerformance.myTeam
+                            .filter(p => p.recentForm)
+                            .map(p => parseFloat(p.recentForm.match(/\d+/)?.[0] || 50) / 100);
+                        if (forms.length > 0) {
+                            myFormBonus = forms.reduce((a, b) => a + b, 0) / forms.length * 0.2;
+                        }
+                    }
+                    
+                    if (appData.playerPerformance.oppTeam) {
+                        const forms = appData.playerPerformance.oppTeam
+                            .filter(p => p.recentForm)
+                            .map(p => parseFloat(p.recentForm.match(/\d+/)?.[0] || 50) / 100);
+                        if (forms.length > 0) {
+                            oppFormBonus = forms.reduce((a, b) => a + b, 0) / forms.length * 0.2;
+                        }
+                    }
+                    
+                    const myTotalForm = (myRating / 2) + myFormBonus; // Rating normalized to ~0.5
+                    const oppTotalForm = (oppRating / 2) + oppFormBonus;
+                    
+                    const formDiff = myTotalForm - oppTotalForm;
+                    factorScores.individualForm = 0.5 + (formDiff * 0.5);
+                }
+
+                // Calculate final weighted probability
+                let finalProbability = 0;
+                Object.keys(normalizedWeights).forEach(factor => {
+                    finalProbability += factorScores[factor] * normalizedWeights[factor];
                 });
 
-                if (data.success) {
-                    appData.lastPrediction = data.data;
-                    displayPredictionResult(data.data, normalizedWeights);
-                    enableStep6();
-                    
-                    // Update button text after successful prediction
-                    button.textContent = 'Recalculate Prediction';
-                } else {
-                    alert('Failed to calculate prediction: ' + (data.error || 'Unknown error'));
-                    button.textContent = originalText;
-                }
+                // Ensure probability is between 0 and 1
+                finalProbability = Math.max(0.05, Math.min(0.95, finalProbability));
+
+                // Calculate confidence based on data availability and consistency
+                let confidence = 0.5;
+                let dataPoints = 0;
+                let totalPoints = 0;
+                
+                Object.values(factorScores).forEach(score => {
+                    if (score !== 0.5) { // 0.5 is default/no data
+                        dataPoints++;
+                        // Higher confidence when factors agree (all high or all low)
+                        const deviation = Math.abs(score - finalProbability);
+                        confidence += (1 - deviation) * 0.1;
+                    }
+                    totalPoints++;
+                });
+                
+                confidence = (dataPoints / totalPoints) * confidence;
+                confidence = Math.max(0.2, Math.min(0.9, confidence));
+
+                // Determine winner
+                const winner = finalProbability >= 0.5 ? appData.selectedMyTeam : appData.selectedOppTeam;
+
+                // Store prediction
+                appData.lastPrediction = {
+                    final_win_probability: finalProbability,
+                    winner: winner,
+                    confidence: confidence,
+                    factors_considered: {
+                        base_prediction: factorScores.teamMatchup,
+                        map_adjustment: factorScores.mapAdvantage - 0.5,
+                        synergy_adjustment: factorScores.playerSynergy - 0.5
+                    },
+                    factor_scores: factorScores,
+                    weights_used: normalizedWeights
+                };
+
+                displayPredictionResult(appData.lastPrediction, normalizedWeights);
+                enableStep6();
+                
+                // Update button text after successful prediction
+                button.textContent = 'Recalculate Prediction';
+                
             } catch (error) {
+                console.error('Error calculating prediction:', error);
                 alert('Error calculating prediction. Please try again.');
                 const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
                 button.textContent = 'Calculate Final Prediction';
@@ -2313,7 +2539,6 @@
             const probElement = document.getElementById('winProbability');
             if (probElement) {
                 probElement.textContent = `${winProb.toFixed(1)}%`;
-                // Color code probability based on team
                 probElement.style.color = isMyTeamWinner ? 'var(--success-green)' : 'var(--danger-red)';
             }
 
@@ -2321,7 +2546,6 @@
             const confidenceFill = document.getElementById('confidenceFill');
             if (confidenceFill) {
                 confidenceFill.style.width = `${confidence}%`;
-                // Update confidence fill color based on confidence level
                 if (confidence > 70) {
                     confidenceFill.style.background = 'linear-gradient(90deg, var(--success-green), rgba(52, 199, 89, 0.7))';
                 } else if (confidence > 40) {
@@ -2331,28 +2555,29 @@
                 }
             }
 
-            const factors = prediction.factors_considered;
+            // Display actual calculated factor scores
+            const factorScores = prediction.factor_scores || {};
             
-            // Calculate actual factor values based on weights
             const factorElements = {
-                'factorTeamMatchup': `${(factors.base_prediction * 100).toFixed(1)}%`,
-                'factorPlayerSynergy': appData.teamStats.myTeam ? `${(appData.teamStats.myTeam.teamSynergy * 100).toFixed(0)}%` : '75%',
-                'factorMapAdvantage': `${((factors.map_adjustment + 0.5) * 100).toFixed(1)}%`,
-                'factorRoleComposition': '80%',
-                'factorAgentSelection': '70%',
-                'factorIndividualForm': appData.teamStats.myTeam ? `${(appData.teamStats.myTeam.avgRating * 50).toFixed(0)}%` : '65%'
+                'factorTeamMatchup': `${(factorScores.teamMatchup * 100).toFixed(1)}%`,
+                'factorPlayerSynergy': `${(factorScores.playerSynergy * 100).toFixed(1)}%`,
+                'factorMapAdvantage': `${(factorScores.mapAdvantage * 100).toFixed(1)}%`,
+                'factorRoleComposition': `${(factorScores.roleComposition * 100).toFixed(1)}%`,
+                'factorAgentSelection': `${(factorScores.agentSelection * 100).toFixed(1)}%`,
+                'factorIndividualForm': `${(factorScores.individualForm * 100).toFixed(1)}%`
             };
 
             Object.entries(factorElements).forEach(([id, value]) => {
                 const element = document.getElementById(id);
                 if (element) {
                     element.textContent = value;
-                    // Color code based on value
                     const numValue = parseFloat(value);
                     if (numValue >= 70) {
                         element.style.color = 'var(--success-green)';
                     } else if (numValue >= 50) {
                         element.style.color = 'var(--text-primary)';
+                    } else if (numValue >= 30) {
+                        element.style.color = 'var(--warning-orange)';
                     } else {
                         element.style.color = 'var(--danger-red)';
                     }
