@@ -764,6 +764,12 @@
             border: 2px solid var(--border-subtle);
             border-top: 2px solid var(--text-secondary);
         }
+        .player-perf-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 0.75rem;
+            flex-wrap: wrap;
+        }
     </style>
 </head>
 
@@ -1185,14 +1191,26 @@
             for (const [agentName, agentData] of Object.entries(agents)) {
                 const games = agentData.games || 0;
                 const rating = agentData.avg_rating || 1.0;
-                const kd = agentData.kd_ratio || 1.0;
-                const acs = agentData.avg_acs || 150;
+                const kdDiff = agentData.avg_kd_diff || 0;
+                const kast = agentData.avg_kast || 70;
+                const winRate = agentData.win_rate || 50;
 
-                const normalizedAcs = acs / 200;
-                const agentScore = (rating * 0.4) + (kd * 0.3) + (normalizedAcs * 0.3);
+                // Convert KD diff to KD ratio (approximate)
+                const kdRatio = 1.0 + (kdDiff / 10);
+                
+                // Calculate agent score using available metrics
+                const normalizedWinRate = winRate / 100;
+                const normalizedKast = kast / 100;
+                const agentScore = (rating * 0.35) + (kdRatio * 0.25) + (normalizedKast * 0.2) + (normalizedWinRate * 0.2);
 
                 totalScore += agentScore * games;
                 weightedGames += games;
+            }
+
+            // Include recent form if available
+            if (stats.recent_form) {
+                const formScore = stats.recent_form.form_score || 0.5;
+                totalScore = totalScore * 0.8 + formScore * 0.2;
             }
 
             return weightedGames > 0 ? totalScore / weightedGames : 0;
@@ -1755,8 +1773,9 @@
                     if (statsResponse.success && statsResponse.data) {
                         const stats = statsResponse.data;
                         let totalRating = 0;
-                        let totalKD = 0;
-                        let totalACS = 0;
+                        let totalKDDiff = 0;
+                        let totalKAST = 0;
+                        let totalWinRate = 0;
                         let totalGames = 0;
 
                         const agents = stats.agents || {};
@@ -1764,43 +1783,59 @@
                             const games = agentData.games || 0;
                             totalGames += games;
                             totalRating += (agentData.avg_rating || 1.0) * games;
-                            totalKD += (agentData.kd_ratio || 1.0) * games;
-                            totalACS += (agentData.avg_acs || 150) * games;
+                            totalKDDiff += (agentData.avg_kd_diff || 0) * games;
+                            totalKAST += (agentData.avg_kast || 70) * games;
+                            totalWinRate += (agentData.win_rate || 50) * games;
+                        }
+
+                        let recentFormText = '';
+                        if (stats.recent_form) {
+                            const recentRating = stats.recent_form.recent_rating || 1.0;
+                            const formScore = (stats.recent_form.form_score * 100).toFixed(0);
+                            recentFormText = `Form: ${formScore}%`;
                         }
 
                         if (totalGames > 0) {
                             performanceData.push({
                                 player,
                                 rating: (totalRating / totalGames).toFixed(2),
-                                kd: (totalKD / totalGames).toFixed(2),
-                                acs: Math.round(totalACS / totalGames),
-                                games: totalGames
+                                kdDiff: (totalKDDiff / totalGames).toFixed(1),
+                                kast: Math.round(totalKAST / totalGames),
+                                winRate: Math.round(totalWinRate / totalGames),
+                                games: totalGames,
+                                recentForm: recentFormText
                             });
                         } else {
                             performanceData.push({
                                 player,
                                 rating: '1.00',
-                                kd: '1.00',
-                                acs: 150,
-                                games: 0
+                                kdDiff: '0.0',
+                                kast: 70,
+                                winRate: 50,
+                                games: 0,
+                                recentForm: ''
                             });
                         }
                     } else {
                         performanceData.push({
                             player,
                             rating: '1.00',
-                            kd: '1.00',
-                            acs: 150,
-                            games: 0
+                            kdDiff: '0.0',
+                            kast: 70,
+                            winRate: 50,
+                            games: 0,
+                            recentForm: ''
                         });
                     }
                 } catch (e) {
                     performanceData.push({
                         player,
                         rating: '1.00',
-                        kd: '1.00',
-                        acs: 150,
-                        games: 0
+                        kdDiff: '0.0',
+                        kast: 70,
+                        winRate: 50,
+                        games: 0,
+                        recentForm: ''
                     });
                 }
             }
@@ -1821,8 +1856,10 @@
                         <div class="player-perf-name">${data.player}</div>
                         <div class="player-perf-stats">
                             <span class="perf-stat">Rating: <strong>${data.rating}</strong></span>
-                            <span class="perf-stat">K/D: <strong>${data.kd}</strong></span>
-                            <span class="perf-stat">ACS: <strong>${data.acs}</strong></span>
+                            <span class="perf-stat">K/D: <strong>${data.kdDiff > 0 ? '+' : ''}${data.kdDiff}</strong></span>
+                            <span class="perf-stat">KAST: <strong>${data.kast}%</strong></span>
+                            <span class="perf-stat">WR: <strong>${data.winRate}%</strong></span>
+                            ${data.recentForm ? `<span class="perf-stat" style="color: var(--warning-orange);">${data.recentForm}</span>` : ''}
                             <span class="perf-stat" style="color: var(--text-muted);">${data.games} games</span>
                         </div>
                     </div>
@@ -1992,13 +2029,40 @@
                 let topRolesText = '';
                 
                 try {
-                    const statsResponse = await apiCall(`/player-agent-preferences/${encodeURIComponent(player)}`);
+                    const statsResponse = await apiCall(`/player-stats/${encodeURIComponent(player)}`);
                     if (statsResponse.success && statsResponse.data) {
-                        const topAgents = statsResponse.data.top_agents.slice(0, 5);
-                        const topRoles = statsResponse.data.top_roles.slice(0, 2);
+                        // Get top agents by games played and rating
+                        const agents = statsResponse.data.agents || {};
+                        const agentList = Object.entries(agents)
+                            .map(([name, data]) => ({
+                                name,
+                                games: data.games || 0,
+                                rating: data.avg_rating || 1.0,
+                                winRate: data.win_rate || 50
+                            }))
+                            .sort((a, b) => {
+                                // Sort by combination of games and rating
+                                const scoreA = (a.games * 0.3) + (a.rating * 50) + (a.winRate * 0.2);
+                                const scoreB = (b.games * 0.3) + (b.rating * 50) + (b.winRate * 0.2);
+                                return scoreB - scoreA;
+                            });
                         
-                        topAgentsText = `Best agents: ${topAgents.join(', ')}`;
-                        topRolesText = `Best roles: ${topRoles.join(', ')}`;
+                        const topAgents = agentList.slice(0, 3).map(a => a.name);
+                        topAgentsText = topAgents.length > 0 ? `Best agents: ${topAgents.join(', ')}` : 'No agent history';
+                        
+                        // Get top roles
+                        const roles = statsResponse.data.roles || {};
+                        const roleList = Object.entries(roles)
+                            .map(([name, data]) => ({
+                                name,
+                                games: data.games || 0,
+                                rating: data.avg_rating || 1.0,
+                                winRate: data.win_rate || 50
+                            }))
+                            .sort((a, b) => b.games - a.games);
+                        
+                        const topRoles = roleList.slice(0, 2).map(r => r.name);
+                        topRolesText = topRoles.length > 0 ? `Best roles: ${topRoles.join(', ')}` : '';
                     }
                 } catch (e) {
                     // Silent fail
