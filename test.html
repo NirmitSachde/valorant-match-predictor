@@ -1,0 +1,2381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valorant Advanced Team Builder & Match Predictor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --valorant-red: #ff4654;
+            --valorant-red-dark: #ba3a46;
+            --valorant-dark: #111823;
+            --valorant-white: #ffffff;
+            --valorant-gray: #1f2937;
+            --valorant-light-gray: #374151;
+            --success-green: #34c759;
+            --warning-orange: #ff9500;
+            --danger-red: #ff3b30;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-muted: rgba(255, 255, 255, 0.5);
+            --border-subtle: rgba(255, 255, 255, 0.1);
+            --border-accent: rgba(255, 255, 255, 0.2);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--valorant-dark);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--text-primary);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--text-primary);
+            margin-bottom: 40px;
+            font-size: 2.5rem;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(17, 24, 35, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loader-content {
+            background: var(--valorant-gray);
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .spinner {
+            border: 3px solid var(--valorant-light-gray);
+            border-top: 3px solid var(--text-secondary);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .api-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            background: var(--valorant-gray);
+            border-radius: 6px;
+            font-size: 12px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            border-left: 3px solid var(--success-green);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .api-status.error {
+            border-left-color: var(--danger-red);
+        }
+
+        .api-status .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success-green);
+            animation: pulse 2s infinite;
+        }
+
+        .api-status.error .status-dot {
+            background: var(--danger-red);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .step-section {
+            background: var(--valorant-gray);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: opacity 0.3s;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .step-section.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .step-title {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+        }
+
+        .step-number {
+            background: var(--text-muted);
+            color: var(--valorant-dark);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .clear-btn {
+            padding: 8px 16px;
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .clear-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            border-color: var(--text-secondary);
+            transform: translateY(-1px);
+        }
+
+        .team-selection {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .team-panel {
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 20px;
+            background: rgba(31, 41, 55, 0.3);
+        }
+
+        .team-panel h3 {
+            margin-bottom: 16px;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .search-select {
+            width: 100%;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 8px;
+            transition: border-color 0.2s;
+            background: var(--valorant-dark);
+            color: var(--text-primary);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--text-secondary);
+        }
+
+        .search-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .dropdown-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            background: var(--valorant-dark);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: absolute;
+            width: 100%;
+            z-index: 100;
+        }
+
+        .dropdown-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-subtle);
+            transition: background 0.2s;
+            font-size: 14px;
+            color: var(--text-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .dropdown-item.selected {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .dropdown-item.suggested {
+            background: rgba(52, 199, 89, 0.05);
+        }
+
+        .synergy-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+            margin-left: 8px;
+        }
+
+        .synergy-badge.high {
+            background: rgba(52, 199, 89, 0.2);
+            color: var(--success-green);
+        }
+
+        .synergy-badge.medium {
+            background: rgba(255, 149, 0, 0.2);
+            color: var(--warning-orange);
+        }
+
+        .top-player-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            background: rgba(255, 70, 84, 0.2);
+            color: var(--valorant-red);
+            margin-left: 8px;
+        }
+
+        .inline-loader {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--border-subtle);
+            border-top: 2px solid var(--text-secondary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 8px;
+        }
+
+        .player-slot {
+            background: rgba(31, 41, 55, 0.3);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .player-slot.filled {
+            background: rgba(52, 199, 89, 0.05);
+            border-color: rgba(52, 199, 89, 0.3);
+        }
+
+        .slot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .slot-label {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .synergy-indicator {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .synergy-high {
+            background: var(--success-green);
+            color: white;
+        }
+
+        .synergy-medium {
+            background: var(--warning-orange);
+            color: white;
+        }
+
+        .synergy-low {
+            background: var(--danger-red);
+            color: white;
+        }
+
+        .team-stats-summary {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(31, 41, 55, 0.3);
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .team-stats-summary h4 {
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .player-performance-section {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(31, 41, 55, 0.3);
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .player-performance-section h4 {
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .player-performance-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .player-perf-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(17, 24, 35, 0.3);
+            border-radius: 4px;
+        }
+
+        .player-perf-name {
+            font-size: 0.875rem;
+            color: var(--text-primary);
+        }
+
+        .player-perf-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 0.75rem;
+        }
+
+        .perf-stat {
+            color: var(--text-secondary);
+        }
+
+        .perf-stat strong {
+            color: var(--text-primary);
+        }
+
+        .map-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .map-card {
+            background: rgba(31, 41, 55, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .map-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.05);
+            border-color: var(--text-secondary);
+        }
+
+        .map-card.selected {
+            border-color: var(--success-green);
+            background: rgba(52, 199, 89, 0.1);
+        }
+
+        .map-name {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .map-winrate {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .map-advantage {
+            font-size: 0.875rem;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .advantage-positive {
+            color: var(--success-green);
+        }
+
+        .advantage-negative {
+            color: var(--danger-red);
+        }
+
+        .agent-selection-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .agent-slot {
+            background: rgba(31, 41, 55, 0.3);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .agent-slot h4 {
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .agent-slot small {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin: 4px 0;
+        }
+
+        .agent-dropdown {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid var(--border-subtle);
+            border-radius: 4px;
+            background: var(--valorant-dark);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .role-composition-summary {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(31, 41, 55, 0.3);
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .role-composition-summary h4 {
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .role-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .role-item {
+            text-align: center;
+            padding: 8px;
+            background: rgba(17, 24, 35, 0.5);
+            border-radius: 4px;
+        }
+
+        .role-count {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .role-name {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .weight-sliders {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .slider-group {
+            background: rgba(31, 41, 55, 0.3);
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .slider-label span:first-child {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .slider-label span:last-child {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .slider {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--border-subtle);
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            cursor: pointer;
+            border: none;
+        }
+
+        .prediction-result {
+            background: linear-gradient(135deg, var(--valorant-gray), var(--valorant-dark));
+            color: var(--text-primary);
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 30px;
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .win-probability {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin: 20px 0;
+            letter-spacing: -1px;
+            color: var(--text-primary);
+        }
+
+        .confidence-meter {
+            width: 100%;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--success-green), rgba(52, 199, 89, 0.7));
+            transition: width 0.5s ease;
+        }
+
+        .confidence-explanation {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+
+        .factor-breakdown {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+            margin-top: 30px;
+        }
+
+        .factor-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .factor-name {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .factor-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        button {
+            background: var(--valorant-red);
+            color: var(--text-primary);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--valorant-red-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 70, 84, 0.3);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .loading-indicator {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+        }
+
+        .loading-indicator .spinner {
+            width: 30px;
+            height: 30px;
+            margin: 0 auto 10px;
+            border: 2px solid var(--border-subtle);
+            border-top: 2px solid var(--text-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Valorant Advanced Team Builder & Match Predictor</h1>
+
+        <!-- API Status -->
+        <div id="apiStatus" class="api-status">
+            <span class="status-dot"></span>
+            <span id="apiStatusText">Connecting...</span>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loaderOverlay" class="loader-overlay">
+            <div class="loader-content">
+                <div class="spinner"></div>
+                <h2>Loading Valorant Data</h2>
+                <p id="loadingStatus">Fetching teams...</p>
+            </div>
+        </div>
+
+        <!-- Step 1: Team Selection -->
+        <div class="step-section" id="step1">
+            <div class="step-header">
+                <div class="step-title">
+                    <span class="step-number">1</span>
+                    Team Selection
+                </div>
+                <button class="clear-btn" onclick="clearTeamSelection()">Clear Teams</button>
+            </div>
+
+            <div class="team-selection">
+                <div class="team-panel">
+                    <h3>My Team</h3>
+                    <div class="search-select">
+                        <input type="text" class="search-input" id="myTeamSearch"
+                            placeholder="Search and select your team..." onkeyup="filterTeams('myTeam')">
+                        <div class="dropdown-list hidden" id="myTeamDropdown"></div>
+                    </div>
+                    <div id="myTeamSelected" style="margin-top: 15px; font-weight: 500;"></div>
+                </div>
+
+                <div class="team-panel">
+                    <h3>Opponent Team</h3>
+                    <div class="search-select">
+                        <input type="text" class="search-input" id="oppTeamSearch"
+                            placeholder="Search and select opponent team..." onkeyup="filterTeams('oppTeam')" disabled>
+                        <div class="dropdown-list hidden" id="oppTeamDropdown"></div>
+                    </div>
+                    <div id="oppTeamSelected" style="margin-top: 15px; font-weight: 500;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Player Selection -->
+        <div class="step-section disabled" id="step2">
+            <div class="step-header">
+                <div class="step-title">
+                    <span class="step-number">2</span>
+                    Player Selection
+                </div>
+                <button class="clear-btn" onclick="clearPlayerSelection()">Clear Players</button>
+            </div>
+
+            <div class="team-selection">
+                <div class="team-panel">
+                    <h3 id="myTeamPlayersHeader">My Team Players</h3>
+                    <div id="myTeamPlayers"></div>
+                    <div id="myTeamStatsDisplay" class="team-stats-summary hidden">
+                        <h4>Team Statistics</h4>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value" id="myTeamSynergyValue">-</div>
+                                <div class="stat-label">Team Synergy</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="myTeamPairsValue">-</div>
+                                <div class="stat-label">Pair Synergy</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="myTeamRatingValue">-</div>
+                                <div class="stat-label">Avg Rating</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="myTeamPerformanceDisplay" class="player-performance-section hidden">
+                        <h4>Individual Performance</h4>
+                        <div class="player-performance-grid" id="myTeamPerformanceGrid"></div>
+                    </div>
+                </div>
+
+                <div class="team-panel">
+                    <h3 id="oppTeamPlayersHeader">Opponent Players</h3>
+                    <div id="oppTeamPlayers"></div>
+                    <div id="oppTeamStatsDisplay" class="team-stats-summary hidden">
+                        <h4>Team Statistics</h4>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value" id="oppTeamSynergyValue">-</div>
+                                <div class="stat-label">Team Synergy</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="oppTeamPairsValue">-</div>
+                                <div class="stat-label">Pair Synergy</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="oppTeamRatingValue">-</div>
+                                <div class="stat-label">Avg Rating</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="oppTeamPerformanceDisplay" class="player-performance-section hidden">
+                        <h4>Individual Performance</h4>
+                        <div class="player-performance-grid" id="oppTeamPerformanceGrid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Map Selection -->
+        <div class="step-section disabled" id="step3">
+            <div class="step-header">
+                <div class="step-title">
+                    <span class="step-number">3</span>
+                    Map Selection
+                </div>
+                <button class="clear-btn" onclick="clearMapSelection()">Clear Map</button>
+            </div>
+
+            <h3>Select Map (Best to Worst for Your Team)</h3>
+            <div class="map-list" id="mapList"></div>
+        </div>
+
+        <!-- Step 4: Agent Selection -->
+        <div class="step-section disabled" id="step4">
+            <div class="step-header">
+                <div class="step-title">
+                    <span class="step-number">4</span>
+                    Agent Selection & Role Composition
+                </div>
+                <button class="clear-btn" onclick="clearAgentSelection()">Clear Agents</button>
+            </div>
+
+            <div id="roleRecommendations" style="margin-bottom: 20px;">
+                <h3>Recommended Roles for <span id="selectedMapName"></span></h3>
+                <div id="roleCompositionSuggestions"></div>
+            </div>
+
+            <h3 id="myTeamAgentsHeader">My Team Agents</h3>
+            <div class="agent-selection-grid" id="myTeamAgents"></div>
+            <div id="myTeamRoleDisplay" class="role-composition-summary hidden">
+                <h4>Role Composition</h4>
+                <div class="role-grid">
+                    <div class="role-item">
+                        <div class="role-count" id="myDuelistCount">0</div>
+                        <div class="role-name">Duelist</div>
+                    </div>
+                    <div class="role-item">
+                        <div class="role-count" id="myInitiatorCount">0</div>
+                        <div class="role-name">Initiator</div>
+                    </div>
+                    <div class="role-item">
+                        <div class="role-count" id="myControllerCount">0</div>
+                        <div class="role-name">Controller</div>
+                    </div>
+                    <div class="role-item">
+                        <div class="role-count" id="mySentinelCount">0</div>
+                        <div class="role-name">Sentinel</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 30px;" id="oppTeamAgentsHeader">Opponent Agents</h3>
+            <div class="agent-selection-grid" id="oppTeamAgents"></div>
+            <div id="oppTeamRoleDisplay" class="role-composition-summary hidden">
+                <h4>Role Composition</h4>
+                <div class="role-grid">
+                    <div class="role-item">
+                        <div class="role-count" id="oppDuelistCount">0</div>
+                        <div class="role-name">Duelist</div>
+                    </div>
+                    <div class="role-item">
+                        <div class="role-count" id="oppInitiatorCount">0</div>
+                        <div class="role-name">Initiator</div>
+                    </div>
+                    <div class="role-item">
+                        <div class="role-count" id="oppControllerCount">0</div>
+                        <div class="role-name">Controller</div>
+                    </div>
+                    <div class="role-item">
+                        <div class="role-count" id="oppSentinelCount">0</div>
+                        <div class="role-name">Sentinel</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5: Prediction Weights -->
+        <div class="step-section disabled" id="step5">
+            <div class="step-header">
+                <div class="step-title">
+                    <span class="step-number">5</span>
+                    Prediction Configuration
+                </div>
+                <button class="clear-btn" onclick="resetWeights()">Reset Weights</button>
+            </div>
+
+            <h3>Adjust Feature Weights</h3>
+            <div class="weight-sliders">
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Team Matchup</span>
+                        <span id="teamMatchupValue">25%</span>
+                    </div>
+                    <input type="range" class="slider" id="teamMatchupWeight" min="0" max="100" value="25"
+                        oninput="updateWeight('teamMatchup')">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Player Synergy</span>
+                        <span id="playerSynergyValue">20%</span>
+                    </div>
+                    <input type="range" class="slider" id="playerSynergyWeight" min="0" max="100" value="20"
+                        oninput="updateWeight('playerSynergy')">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Map Advantage</span>
+                        <span id="mapAdvantageValue">20%</span>
+                    </div>
+                    <input type="range" class="slider" id="mapAdvantageWeight" min="0" max="100" value="20"
+                        oninput="updateWeight('mapAdvantage')">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Role Composition</span>
+                        <span id="roleCompositionValue">15%</span>
+                    </div>
+                    <input type="range" class="slider" id="roleCompositionWeight" min="0" max="100" value="15"
+                        oninput="updateWeight('roleComposition')">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Agent Selection</span>
+                        <span id="agentSelectionValue">10%</span>
+                    </div>
+                    <input type="range" class="slider" id="agentSelectionWeight" min="0" max="100" value="10"
+                        oninput="updateWeight('agentSelection')">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Individual Form</span>
+                        <span id="individualFormValue">10%</span>
+                    </div>
+                    <input type="range" class="slider" id="individualFormWeight" min="0" max="100" value="10"
+                        oninput="updateWeight('individualForm')">
+                </div>
+            </div>
+
+            <div style="margin-top: 30px; text-align: center;">
+                <button onclick="calculateFinalPrediction()" style="font-size: 1.1rem; padding: 14px 32px;">
+                    Calculate Final Prediction
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 6: Final Prediction -->
+        <div class="step-section disabled hidden" id="step6">
+            <div class="step-header">
+                <div class="step-title">
+                    <span class="step-number">6</span>
+                    Match Prediction Result
+                </div>
+                <button class="clear-btn" onclick="resetAll()">Start Over</button>
+            </div>
+
+            <div class="prediction-result">
+                <h2 id="winnerTeam" style="font-size: 2rem; margin-bottom: 20px;">-</h2>
+                <div class="win-probability" id="winProbability">--%</div>
+                <div style="font-size: 0.875rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 1px;">Win Probability</div>
+                <div class="confidence-meter">
+                    <div class="confidence-fill" id="confidenceFill"></div>
+                </div>
+                <div class="confidence-explanation">
+                    Confidence level represents how certain the model is about this prediction based on data quality and consistency of the contributing factors.
+                </div>
+
+                <div class="factor-breakdown">
+                    <div class="factor-card">
+                        <div class="factor-name">Team Matchup</div>
+                        <div class="factor-value" id="factorTeamMatchup">-</div>
+                    </div>
+                    <div class="factor-card">
+                        <div class="factor-name">Player Synergy</div>
+                        <div class="factor-value" id="factorPlayerSynergy">-</div>
+                    </div>
+                    <div class="factor-card">
+                        <div class="factor-name">Map Advantage</div>
+                        <div class="factor-value" id="factorMapAdvantage">-</div>
+                    </div>
+                    <div class="factor-card">
+                        <div class="factor-name">Role Composition</div>
+                        <div class="factor-value" id="factorRoleComposition">-</div>
+                    </div>
+                    <div class="factor-card">
+                        <div class="factor-name">Agent Selection</div>
+                        <div class="factor-value" id="factorAgentSelection">-</div>
+                    </div>
+                    <div class="factor-card">
+                        <div class="factor-name">Individual Form</div>
+                        <div class="factor-value" id="factorIndividualForm">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = '/.netlify/functions/valorant-api';
+
+        // Global state
+        let appData = {
+            teams: [],
+            players: [],
+            maps: [],
+            agents: [],
+            selectedMyTeam: null,
+            selectedOppTeam: null,
+            myTeamPlayers: [],
+            oppTeamPlayers: [],
+            selectedMap: null,
+            myTeamAgents: [],
+            oppTeamAgents: [],
+            weights: {
+                teamMatchup: 25,
+                playerSynergy: 20,
+                mapAdvantage: 20,
+                roleComposition: 15,
+                agentSelection: 10,
+                individualForm: 10
+            },
+            teamStats: {
+                myTeam: null,
+                oppTeam: null
+            },
+            playerPerformance: {
+                myTeam: {},
+                oppTeam: {}
+            },
+            lastPrediction: null
+        };
+
+        const synergyCache = new Map();
+
+        function updateAPIStatus(status, isError = false) {
+            const statusEl = document.getElementById('apiStatusText');
+            const containerEl = document.getElementById('apiStatus');
+
+            if (statusEl) statusEl.textContent = status;
+            if (containerEl) {
+                containerEl.className = 'api-status ' + (isError ? 'error' : '');
+            }
+        }
+
+        async function apiCall(endpoint, options = {}) {
+            const url = `${API_BASE}${endpoint}`;
+            
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                updateAPIStatus('Connected');
+                return data;
+
+            } catch (error) {
+                updateAPIStatus('Connection Error', true);
+                throw error;
+            }
+        }
+
+        function showLoadingInDropdown(dropdownId, message = 'Loading...') {
+            const dropdown = document.getElementById(dropdownId);
+            if (dropdown) {
+                dropdown.innerHTML = `
+                    <div class="loading-indicator">
+                        <div class="spinner"></div>
+                        <div>${message}</div>
+                    </div>
+                `;
+                dropdown.classList.remove('hidden');
+            }
+        }
+
+        function calculatePlayerStatsScore(player, playerStats) {
+            if (!player || !playerStats || !playerStats[player]) return 0;
+
+            const stats = playerStats[player];
+            let totalScore = 0;
+            let weightedGames = 0;
+
+            const agents = stats.agents || {};
+            for (const [agentName, agentData] of Object.entries(agents)) {
+                const games = agentData.games || 0;
+                const rating = agentData.avg_rating || 1.0;
+                const kd = agentData.kd_ratio || 1.0;
+                const acs = agentData.avg_acs || 150;
+
+                const normalizedAcs = acs / 200;
+                const agentScore = (rating * 0.4) + (kd * 0.3) + (normalizedAcs * 0.3);
+
+                totalScore += agentScore * games;
+                weightedGames += games;
+            }
+
+            return weightedGames > 0 ? totalScore / weightedGames : 0;
+        }
+
+        async function getTeamTopPlayers(team) {
+            try {
+                const response = await apiCall(`/players?team=${encodeURIComponent(team)}&include_historical=true`);
+
+                if (!response.success || !response.data || !response.data.players) {
+                    return { allPlayers: [], topPlayers: [] };
+                }
+
+                const teamPlayers = response.data.players;
+                const playerScores = [];
+
+                for (const player of teamPlayers) {
+                    try {
+                        const statsResponse = await apiCall(`/player-stats/${encodeURIComponent(player)}`);
+                        if (statsResponse.success && statsResponse.data) {
+                            const score = calculatePlayerStatsScore(player, { [player]: statsResponse.data });
+                            playerScores.push({ player, score });
+                        } else {
+                            playerScores.push({ player, score: 0 });
+                        }
+                    } catch (e) {
+                        playerScores.push({ player, score: 0 });
+                    }
+                }
+
+                playerScores.sort((a, b) => b.score - a.score);
+                const topPlayers = playerScores.slice(0, 5).map(p => p.player);
+
+                return {
+                    allPlayers: teamPlayers,
+                    topPlayers: topPlayers
+                };
+            } catch (error) {
+                return { allPlayers: [], topPlayers: [] };
+            }
+        }
+
+        async function initApp() {
+            try {
+                await loadAllData();
+                setupEventListeners();
+                document.getElementById('loaderOverlay').style.display = 'none';
+                updateAPIStatus('Ready');
+            } catch (error) {
+                updateAPIStatus('Initialization Failed', true);
+            }
+        }
+
+        async function loadAllData() {
+            const loadingSteps = [
+                { name: 'teams', endpoint: '/teams', key: 'teams' },
+                { name: 'players', endpoint: '/players', key: 'players' },
+                { name: 'maps', endpoint: '/maps', key: null },
+                { name: 'agents', endpoint: '/agents', key: null }
+            ];
+
+            for (let step of loadingSteps) {
+                try {
+                    document.getElementById('loadingStatus').textContent = `Fetching ${step.name}...`;
+                    const data = await apiCall(step.endpoint);
+
+                    if (data.success) {
+                        let items = [];
+                        if (step.key && data.data && data.data[step.key]) {
+                            items = data.data[step.key];
+                        } else if (Array.isArray(data.data)) {
+                            items = data.data;
+                        } else if (data.data) {
+                            items = Object.values(data.data);
+                        }
+
+                        appData[step.name] = items;
+                    } else {
+                        appData[step.name] = [];
+                    }
+
+                } catch (error) {
+                    appData[step.name] = [];
+                }
+            }
+
+            document.getElementById('loadingStatus').textContent = 'Ready!';
+        }
+
+        function setupEventListeners() {
+            const myTeamSearch = document.getElementById('myTeamSearch');
+            const oppTeamSearch = document.getElementById('oppTeamSearch');
+
+            if (myTeamSearch) {
+                myTeamSearch.addEventListener('focus', function () {
+                    showTeamDropdown('myTeam');
+                });
+            }
+
+            if (oppTeamSearch) {
+                oppTeamSearch.addEventListener('focus', function () {
+                    if (appData.selectedMyTeam) {
+                        showTeamDropdown('oppTeam');
+                    }
+                });
+            }
+
+            document.addEventListener('click', function (event) {
+                if (!event.target.closest('.search-select')) {
+                    document.querySelectorAll('.dropdown-list').forEach(d => d.classList.add('hidden'));
+                }
+            });
+        }
+
+        function showTeamDropdown(teamType) {
+            const dropdown = document.getElementById(`${teamType}Dropdown`);
+            const searchInput = document.getElementById(`${teamType}Search`);
+
+            if (!dropdown || !searchInput) return;
+
+            const searchValue = searchInput.value.toLowerCase();
+            let teams = [...appData.teams];
+
+            if (teamType === 'oppTeam' && appData.selectedMyTeam) {
+                teams = teams.filter(t => t !== appData.selectedMyTeam);
+            }
+
+            if (searchValue) {
+                teams = teams.filter(t => t.toLowerCase().includes(searchValue));
+            }
+
+            dropdown.innerHTML = teams.map(team =>
+                `<div class="dropdown-item" onclick="selectTeam('${teamType}', '${team.replace(/'/g, "\\'")}')">${team}</div>`
+            ).join('');
+
+            dropdown.classList.remove('hidden');
+        }
+
+        function filterTeams(teamType) {
+            showTeamDropdown(teamType);
+        }
+
+        function selectTeam(teamType, team) {
+            if (teamType === 'myTeam') {
+                appData.selectedMyTeam = team;
+                document.getElementById('myTeamSelected').textContent = `Selected: ${team}`;
+                document.getElementById('myTeamSearch').value = team;
+                document.getElementById('oppTeamSearch').disabled = false;
+                document.getElementById('oppTeamSearch').placeholder = 'Search and select opponent team...';
+            } else {
+                appData.selectedOppTeam = team;
+                document.getElementById('oppTeamSelected').textContent = `Selected: ${team}`;
+                document.getElementById('oppTeamSearch').value = team;
+                enableStep2();
+            }
+
+            document.getElementById(`${teamType}Dropdown`).classList.add('hidden');
+        }
+
+        function clearTeamSelection() {
+            appData.selectedMyTeam = null;
+            appData.selectedOppTeam = null;
+            document.getElementById('myTeamSelected').textContent = '';
+            document.getElementById('oppTeamSelected').textContent = '';
+            document.getElementById('myTeamSearch').value = '';
+            document.getElementById('oppTeamSearch').value = '';
+            document.getElementById('oppTeamSearch').disabled = true;
+            disableStepsFrom(2);
+        }
+
+        function enableStep2() {
+            document.getElementById('step2').classList.remove('disabled');
+            document.getElementById('myTeamPlayersHeader').textContent = appData.selectedMyTeam + ' Players';
+            document.getElementById('oppTeamPlayersHeader').textContent = appData.selectedOppTeam + ' Players';
+            setupPlayerSelection();
+        }
+
+        function setupPlayerSelection() {
+            const myTeamContainer = document.getElementById('myTeamPlayers');
+            const oppTeamContainer = document.getElementById('oppTeamPlayers');
+
+            if (!myTeamContainer || !oppTeamContainer) return;
+
+            myTeamContainer.innerHTML = '';
+            oppTeamContainer.innerHTML = '';
+
+            for (let i = 0; i < 5; i++) {
+                myTeamContainer.innerHTML += createPlayerSlot('myTeam', i);
+                oppTeamContainer.innerHTML += createPlayerSlot('oppTeam', i);
+            }
+
+            setupPlayerDropdown('myTeam', 0);
+            setupPlayerDropdown('oppTeam', 0);
+        }
+
+        function createPlayerSlot(teamType, index) {
+            return `
+                <div class="player-slot" id="${teamType}Player${index}">
+                    <div class="slot-header">
+                        <span class="slot-label">Player ${index + 1}</span>
+                        <span class="synergy-indicator hidden" id="${teamType}Synergy${index}"></span>
+                    </div>
+                    <div class="search-select">
+                        <input type="text" class="search-input" 
+                               id="${teamType}PlayerSearch${index}" 
+                               placeholder="Search player..." 
+                               onkeyup="filterPlayers('${teamType}', ${index})"
+                               onfocus="showPlayerDropdown('${teamType}', ${index})"
+                               ${index > 0 ? 'disabled' : ''}>
+                        <div class="dropdown-list hidden" id="${teamType}PlayerDropdown${index}"></div>
+                    </div>
+                    <div id="${teamType}PlayerSelected${index}" style="margin-top: 10px; font-weight: 500;"></div>
+                </div>
+            `;
+        }
+
+        async function setupPlayerDropdown(teamType, index) {
+            const selectedTeam = teamType === 'myTeam' ? appData.selectedMyTeam : appData.selectedOppTeam;
+            const allSelectedPlayers = [...appData.myTeamPlayers, ...appData.oppTeamPlayers].filter(p => p);
+
+            try {
+                const { allPlayers: teamPlayers, topPlayers } = await getTeamTopPlayers(selectedTeam);
+                window[`${teamType}TopPlayers${index}`] = topPlayers;
+
+                const allAvailablePlayers = [...new Set([...teamPlayers, ...appData.players])];
+                const availablePlayers = allAvailablePlayers.filter(p => !allSelectedPlayers.includes(p));
+
+                const playerList = availablePlayers.map(player => {
+                    const isTeamPlayer = teamPlayers.includes(player);
+                    const isTop = topPlayers.includes(player);
+
+                    let priority = 100;
+                    if (isTeamPlayer && isTop) {
+                        priority = 0;
+                    } else if (isTeamPlayer) {
+                        priority = 10;
+                    } else if (isTop) {
+                        priority = 20;
+                    }
+
+                    return {
+                        player,
+                        isTop,
+                        isTeamPlayer,
+                        synergies: {},
+                        avgSynergy: 0,
+                        synergyCount: 0,
+                        priority
+                    };
+                });
+
+                playerList.sort((a, b) => {
+                    if (a.priority !== b.priority) return a.priority - b.priority;
+                    return a.player.localeCompare(b.player);
+                });
+
+                window[`${teamType}PlayerList${index}`] = playerList;
+
+            } catch (error) {
+                const availablePlayers = appData.players.filter(p => !allSelectedPlayers.includes(p));
+                window[`${teamType}PlayerList${index}`] = availablePlayers.map(p => ({
+                    player: p,
+                    priority: 100,
+                    isTeamPlayer: false,
+                    isTop: false
+                }));
+            }
+        }
+
+        async function showPlayerDropdown(teamType, index) {
+            const dropdown = document.getElementById(`${teamType}PlayerDropdown${index}`);
+            const searchInput = document.getElementById(`${teamType}PlayerSearch${index}`);
+            
+            if (!dropdown || !searchInput) return;
+            
+            // Show loading immediately
+            dropdown.classList.remove('hidden');
+            
+            // Check if player list is still being loaded
+            if (window[`${teamType}PlayerListLoading${index}`] || !window[`${teamType}PlayerList${index}`]) {
+                showLoadingInDropdown(`${teamType}PlayerDropdown${index}`, `Loading ${teamType === 'myTeam' ? appData.selectedMyTeam : appData.selectedOppTeam} players...`);
+                
+                // If data isn't ready, setup the dropdown first
+                if (!window[`${teamType}PlayerList${index}`]) {
+                    await setupPlayerDropdown(teamType, index);
+                } else {
+                    // Wait for loading to complete
+                    while (window[`${teamType}PlayerListLoading${index}`]) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+            }
+            
+            const playerList = window[`${teamType}PlayerList${index}`] || [];
+            const searchValue = searchInput.value.toLowerCase();
+            
+            const selectedPlayers = teamType === 'myTeam' ? appData.myTeamPlayers : appData.oppTeamPlayers;
+            const currentlySelected = selectedPlayers.filter(p => p);
+
+            let displayPlayers = [...playerList];
+
+            if (currentlySelected.length > 0) {
+                // Update loading message
+                showLoadingInDropdown(`${teamType}PlayerDropdown${index}`, 'Calculating synergies...');
+                
+                // Small delay to show the loading message
+                await new Promise(resolve => setTimeout(resolve, 10));
+                
+                const allSynergies = {};
+                
+                for (const selectedPlayer of currentlySelected) {
+                    try {
+                        const response = await apiCall(`/player-all-synergies/${encodeURIComponent(selectedPlayer)}`);
+                        
+                        if (response.success && response.data) {
+                            for (const [player, synergy] of Object.entries(response.data)) {
+                                if (!allSynergies[player]) {
+                                    allSynergies[player] = {};
+                                }
+                                allSynergies[player][selectedPlayer] = synergy;
+                            }
+                        }
+                    } catch (e) {
+                        // Silent fail
+                    }
+                }
+                
+                for (let playerInfo of displayPlayers) {
+                    const playerSynergies = allSynergies[playerInfo.player] || {};
+                    const synergyCount = Object.keys(playerSynergies).length;
+                    
+                    if (synergyCount > 0) {
+                        playerInfo.synergies = playerSynergies;
+                        playerInfo.synergyCount = synergyCount;
+                        
+                        const synergyValues = Object.values(playerSynergies);
+                        playerInfo.avgSynergy = synergyValues.reduce((a, b) => a + b, 0) / synergyValues.length;
+                        
+                        if (synergyCount === currentlySelected.length) {
+                            playerInfo.synergyTier = 1;
+                        } else if (synergyCount >= currentlySelected.length * 0.75) {
+                            playerInfo.synergyTier = 2;
+                        } else if (synergyCount >= currentlySelected.length * 0.5) {
+                            playerInfo.synergyTier = 3;
+                        } else {
+                            playerInfo.synergyTier = 4;
+                        }
+                    } else {
+                        playerInfo.synergyTier = 5;
+                    }
+                }
+                
+                displayPlayers.sort((a, b) => {
+                    if (a.synergyTier !== b.synergyTier) {
+                        return a.synergyTier - b.synergyTier;
+                    }
+                    
+                    if (a.synergyTier <= 4 && b.synergyTier <= 4) {
+                        if (a.avgSynergy !== b.avgSynergy) {
+                            return b.avgSynergy - a.avgSynergy;
+                        }
+                    }
+                    
+                    if (a.priority !== b.priority) {
+                        return a.priority - b.priority;
+                    }
+                    
+                    return a.player.localeCompare(b.player);
+                });
+            }
+
+            if (searchValue && searchValue.length > 0) {
+                displayPlayers = displayPlayers.filter(p =>
+                    p.player.toLowerCase().includes(searchValue)
+                );
+            }
+
+            dropdown.innerHTML = displayPlayers.map((playerInfo) => {
+                const player = playerInfo.player;
+                const playerDisplay = player.replace(/'/g, "\\'");
+
+                let badges = '';
+                let className = 'dropdown-item';
+
+                if (playerInfo.isTop) {
+                    badges += '<span class="top-player-badge">TOP 5</span>';
+                }
+
+                if (playerInfo.synergyCount > 0) {
+                    className += ' suggested';
+                    const avgSynergyPercent = Math.round(playerInfo.avgSynergy * 100);
+                    
+                    let synergyClass = '';
+                    if (playerInfo.synergyTier === 1) {
+                        synergyClass = 'high';
+                        badges += `<span class="synergy-badge ${synergyClass}">${playerInfo.synergyCount}/${currentlySelected.length} • ${avgSynergyPercent}%</span>`;
+                    } else if (playerInfo.synergyTier === 2) {
+                        synergyClass = 'high';
+                        badges += `<span class="synergy-badge ${synergyClass}">${playerInfo.synergyCount}/${currentlySelected.length} • ${avgSynergyPercent}%</span>`;
+                    } else if (playerInfo.synergyTier === 3) {
+                        synergyClass = 'medium';
+                        badges += `<span class="synergy-badge ${synergyClass}">${playerInfo.synergyCount}/${currentlySelected.length} • ${avgSynergyPercent}%</span>`;
+                    } else {
+                        badges += `<span class="synergy-badge">${playerInfo.synergyCount}/${currentlySelected.length}</span>`;
+                    }
+                }
+
+                return `<div class="${className}" 
+                            onclick="selectPlayer('${teamType}', ${index}, '${playerDisplay}')">
+                            <span>${player}</span>
+                            <div>${badges}</div>
+                        </div>`;
+            }).join('');
+
+            dropdown.classList.remove('hidden');
+        }
+
+        function filterPlayers(teamType, index) {
+            showPlayerDropdown(teamType, index);
+        }
+
+        function selectPlayer(teamType, index, player) {
+            if (teamType === 'myTeam') {
+                appData.myTeamPlayers[index] = player;
+            } else {
+                appData.oppTeamPlayers[index] = player;
+            }
+
+            synergyCache.clear();
+
+            document.getElementById(`${teamType}PlayerSelected${index}`).textContent = player;
+            document.getElementById(`${teamType}PlayerSearch${index}`).value = player;
+            document.getElementById(`${teamType}PlayerDropdown${index}`).classList.add('hidden');
+            document.getElementById(`${teamType}Player${index}`).classList.add('filled');
+
+            if (index < 4) {
+                const nextSearchInput = document.getElementById(`${teamType}PlayerSearch${index + 1}`);
+                if (nextSearchInput) {
+                    nextSearchInput.disabled = false;
+                    setupPlayerDropdown(teamType, index + 1);
+                }
+            }
+
+            const myTeamComplete = appData.myTeamPlayers.filter(p => p).length === 5;
+            const oppTeamComplete = appData.oppTeamPlayers.filter(p => p).length === 5;
+
+            if (myTeamComplete && oppTeamComplete) {
+                enableStep3();
+                calculateTeamSynergies();
+            }
+        }
+
+        function clearPlayerSelection() {
+            appData.myTeamPlayers = [];
+            appData.oppTeamPlayers = [];
+            setupPlayerSelection();
+            disableStepsFrom(3);
+            
+            document.getElementById('myTeamStatsDisplay').classList.add('hidden');
+            document.getElementById('oppTeamStatsDisplay').classList.add('hidden');
+            document.getElementById('myTeamPerformanceDisplay').classList.add('hidden');
+            document.getElementById('oppTeamPerformanceDisplay').classList.add('hidden');
+        }
+
+        async function calculateTeamSynergies() {
+            try {
+                const myTeamData = await apiCall('/predict/player-synergy', {
+                    method: 'POST',
+                    body: JSON.stringify({ players: appData.myTeamPlayers })
+                });
+
+                if (myTeamData.success) {
+                    const synergy = myTeamData.data.team_synergy;
+                    const avgRating = myTeamData.data.avg_player_rating;
+
+                    let avgPairSynergy = 0.5;
+                    try {
+                        const pairResponse = await apiCall('/calculate-synergies', {
+                            method: 'POST',
+                            body: JSON.stringify(appData.myTeamPlayers)
+                        });
+
+                        if (pairResponse.success && pairResponse.data) {
+                            const synergies = Object.values(pairResponse.data);
+                            if (synergies.length > 0) {
+                                avgPairSynergy = synergies.reduce((a, b) => a + b, 0) / synergies.length;
+                            }
+                        }
+                    } catch (e) {
+                        // Silent fail
+                    }
+
+                    appData.teamStats.myTeam = {
+                        teamSynergy: synergy,
+                        pairSynergy: avgPairSynergy,
+                        avgRating: avgRating
+                    };
+
+                    document.getElementById('myTeamStatsDisplay').classList.remove('hidden');
+                    document.getElementById('myTeamSynergyValue').textContent = `${(synergy * 100).toFixed(0)}%`;
+                    document.getElementById('myTeamPairsValue').textContent = `${(avgPairSynergy * 100).toFixed(0)}%`;
+                    document.getElementById('myTeamRatingValue').textContent = avgRating.toFixed(2);
+                }
+
+                // Load individual player performance for my team
+                await loadPlayerPerformance('myTeam', appData.myTeamPlayers);
+
+                const oppTeamData = await apiCall('/predict/player-synergy', {
+                    method: 'POST',
+                    body: JSON.stringify({ players: appData.oppTeamPlayers })
+                });
+
+                if (oppTeamData.success) {
+                    const synergy = oppTeamData.data.team_synergy;
+                    const avgRating = oppTeamData.data.avg_player_rating;
+
+                    let avgPairSynergy = 0.5;
+                    try {
+                        const pairResponse = await apiCall('/calculate-synergies', {
+                            method: 'POST',
+                            body: JSON.stringify(appData.oppTeamPlayers)
+                        });
+
+                        if (pairResponse.success && pairResponse.data) {
+                            const synergies = Object.values(pairResponse.data);
+                            if (synergies.length > 0) {
+                                avgPairSynergy = synergies.reduce((a, b) => a + b, 0) / synergies.length;
+                            }
+                        }
+                    } catch (e) {
+                        // Silent fail
+                    }
+
+                    appData.teamStats.oppTeam = {
+                        teamSynergy: synergy,
+                        pairSynergy: avgPairSynergy,
+                        avgRating: avgRating
+                    };
+
+                    document.getElementById('oppTeamStatsDisplay').classList.remove('hidden');
+                    document.getElementById('oppTeamSynergyValue').textContent = `${(synergy * 100).toFixed(0)}%`;
+                    document.getElementById('oppTeamPairsValue').textContent = `${(avgPairSynergy * 100).toFixed(0)}%`;
+                    document.getElementById('oppTeamRatingValue').textContent = avgRating.toFixed(2);
+                }
+
+                // Load individual player performance for opponent team
+                await loadPlayerPerformance('oppTeam', appData.oppTeamPlayers);
+
+            } catch (error) {
+                console.error('Error calculating team synergies:', error);
+            }
+        }
+
+        async function loadPlayerPerformance(teamType, players) {
+            const performanceData = [];
+            
+            for (const player of players) {
+                try {
+                    const statsResponse = await apiCall(`/player-stats/${encodeURIComponent(player)}`);
+                    if (statsResponse.success && statsResponse.data) {
+                        const stats = statsResponse.data;
+                        let totalRating = 0;
+                        let totalKD = 0;
+                        let totalACS = 0;
+                        let totalGames = 0;
+
+                        const agents = stats.agents || {};
+                        for (const [agentName, agentData] of Object.entries(agents)) {
+                            const games = agentData.games || 0;
+                            totalGames += games;
+                            totalRating += (agentData.avg_rating || 1.0) * games;
+                            totalKD += (agentData.kd_ratio || 1.0) * games;
+                            totalACS += (agentData.avg_acs || 150) * games;
+                        }
+
+                        if (totalGames > 0) {
+                            performanceData.push({
+                                player,
+                                rating: (totalRating / totalGames).toFixed(2),
+                                kd: (totalKD / totalGames).toFixed(2),
+                                acs: Math.round(totalACS / totalGames),
+                                games: totalGames
+                            });
+                        } else {
+                            performanceData.push({
+                                player,
+                                rating: '1.00',
+                                kd: '1.00',
+                                acs: 150,
+                                games: 0
+                            });
+                        }
+                    } else {
+                        performanceData.push({
+                            player,
+                            rating: '1.00',
+                            kd: '1.00',
+                            acs: 150,
+                            games: 0
+                        });
+                    }
+                } catch (e) {
+                    performanceData.push({
+                        player,
+                        rating: '1.00',
+                        kd: '1.00',
+                        acs: 150,
+                        games: 0
+                    });
+                }
+            }
+
+            // Store performance data
+            appData.playerPerformance[teamType] = performanceData;
+
+            // Display performance data
+            const containerId = teamType === 'myTeam' ? 'myTeamPerformanceDisplay' : 'oppTeamPerformanceDisplay';
+            const gridId = teamType === 'myTeam' ? 'myTeamPerformanceGrid' : 'oppTeamPerformanceGrid';
+            
+            const container = document.getElementById(containerId);
+            const grid = document.getElementById(gridId);
+            
+            if (container && grid) {
+                grid.innerHTML = performanceData.map(data => `
+                    <div class="player-perf-item">
+                        <div class="player-perf-name">${data.player}</div>
+                        <div class="player-perf-stats">
+                            <span class="perf-stat">Rating: <strong>${data.rating}</strong></span>
+                            <span class="perf-stat">K/D: <strong>${data.kd}</strong></span>
+                            <span class="perf-stat">ACS: <strong>${data.acs}</strong></span>
+                            <span class="perf-stat" style="color: var(--text-muted);">${data.games} games</span>
+                        </div>
+                    </div>
+                `).join('');
+                
+                container.classList.remove('hidden');
+            }
+        }
+
+        function enableStep3() {
+            document.getElementById('step3').classList.remove('disabled');
+            loadMapPreferences();
+        }
+
+        async function loadMapPreferences() {
+            try {
+                const data = await apiCall('/team-map-preference', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        team: appData.selectedMyTeam,
+                        players: appData.myTeamPlayers,
+                        available_maps: appData.maps
+                    })
+                });
+
+                const mapList = document.getElementById('mapList');
+
+                if (data.success && data.data.map_preferences) {
+                    const summaryHTML = `
+                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(31, 41, 55, 0.3); border-radius: 8px; border: 1px solid var(--border-subtle);">
+                            <h4 style="margin-bottom: 10px;">Map Analysis</h4>
+                            <p style="margin: 5px 0;"><strong>Best Pick:</strong> ${data.data.recommended_pick}</p>
+                            <p style="margin: 5px 0;"><strong>Best Ban:</strong> ${data.data.recommended_ban}</p>
+                            <p style="margin: 5px 0; font-size: 0.875rem; color: var(--text-secondary);">
+                                Rankings based on ${appData.selectedMyTeam}'s team performance + individual player map stats
+                            </p>
+                        </div>
+                    `;
+
+                    let summaryDiv = mapList.parentNode.querySelector('.map-analysis-summary');
+                    if (!summaryDiv) {
+                        summaryDiv = document.createElement('div');
+                        summaryDiv.className = 'map-analysis-summary';
+                        mapList.parentNode.insertBefore(summaryDiv, mapList);
+                    }
+                    summaryDiv.innerHTML = summaryHTML;
+
+                    mapList.innerHTML = data.data.map_preferences.map(([map, winRate]) => {
+                        const advantage = winRate - 50;
+                        const advantageClass = advantage > 0 ? 'advantage-positive' : 'advantage-negative';
+
+                        return `
+                            <div class="map-card" onclick="selectMap('${map}', ${winRate})">
+                                <div class="map-name">${map}</div>
+                                <div class="map-winrate">${winRate.toFixed(1)}%</div>
+                                <div class="map-advantage ${advantageClass}">
+                                    ${advantage > 0 ? '+' : ''}${advantage.toFixed(1)}%
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    mapList.innerHTML = appData.maps.map(map => `
+                        <div class="map-card" onclick="selectMap('${map}', 50)">
+                            <div class="map-name">${map}</div>
+                            <div class="map-winrate">50.0%</div>
+                            <div class="map-advantage">±0.0%</div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                const mapList = document.getElementById('mapList');
+                mapList.innerHTML = appData.maps.map(map => `
+                    <div class="map-card" onclick="selectMap('${map}', 50)">
+                        <div class="map-name">${map}</div>
+                        <div class="map-winrate">50.0%</div>
+                        <div class="map-advantage">±0.0%</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function selectMap(map, winRate) {
+            document.querySelectorAll('.map-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            event.currentTarget.classList.add('selected');
+            appData.selectedMap = map;
+            enableStep4();
+        }
+
+        function clearMapSelection() {
+            appData.selectedMap = null;
+            document.querySelectorAll('.map-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            disableStepsFrom(4);
+        }
+
+        function enableStep4() {
+            document.getElementById('step4').classList.remove('disabled');
+            document.getElementById('selectedMapName').textContent = appData.selectedMap;
+            document.getElementById('myTeamAgentsHeader').textContent = appData.selectedMyTeam + ' Agents';
+            document.getElementById('oppTeamAgentsHeader').textContent = appData.selectedOppTeam + ' Agents';
+            loadRoleRecommendations();
+            setupAgentSelection();
+        }
+
+        async function loadRoleRecommendations() {
+            const recommendations = document.getElementById('roleCompositionSuggestions');
+            
+            try {
+                const response = await apiCall(`/map-role-compositions/${encodeURIComponent(appData.selectedMap)}`);
+                
+                if (response.success && response.data.top_compositions) {
+                    const topComps = response.data.top_compositions;
+                    
+                    let html = `
+                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(31, 41, 55, 0.3); border-radius: 8px; border: 1px solid var(--border-subtle);">
+                            <h4>Top Compositions for ${appData.selectedMap}</h4>
+                            <div style="display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap;">
+                    `;
+                    
+                    topComps.forEach((comp, index) => {
+                        const data = comp.composition;
+                        const winRate = data.win_rate.toFixed(1);
+                        const games = data.games;
+                        
+                        html += `
+                            <div style="padding: 10px; background: rgba(17, 24, 35, 0.5); border-radius: 6px; border: 1px solid var(--border-subtle);">
+                                <strong>${data.description}</strong><br>
+                                <span style="color: var(--success-green);">${winRate}% WR</span> | 
+                                <span style="color: var(--text-secondary);">${games} games</span>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                    recommendations.innerHTML = html;
+                    
+                } else {
+                    recommendations.innerHTML = `
+                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(31, 41, 55, 0.3); border-radius: 8px; border: 1px solid var(--border-subtle);">
+                            <h4>Common Compositions</h4>
+                            <p>1 Duelist, 2 Initiator, 1 Controller, 1 Sentinel (Standard)</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                recommendations.innerHTML = '';
+            }
+        }
+
+        async function setupAgentSelection() {
+            appData.myTeamAgents = new Array(5).fill('');
+            appData.oppTeamAgents = new Array(5).fill('');
+            
+            const myAgentsContainer = document.getElementById('myTeamAgents');
+            const oppAgentsContainer = document.getElementById('oppTeamAgents');
+
+            const getPlayerAgentHTML = async (player, teamType, index) => {
+                let topAgentsText = '';
+                let topRolesText = '';
+                
+                try {
+                    const statsResponse = await apiCall(`/player-agent-preferences/${encodeURIComponent(player)}`);
+                    if (statsResponse.success && statsResponse.data) {
+                        const topAgents = statsResponse.data.top_agents.slice(0, 5);
+                        const topRoles = statsResponse.data.top_roles.slice(0, 2);
+                        
+                        topAgentsText = `Best agents: ${topAgents.join(', ')}`;
+                        topRolesText = `Best roles: ${topRoles.join(', ')}`;
+                    }
+                } catch (e) {
+                    // Silent fail
+                }
+                
+                return `
+                    <div class="agent-slot">
+                        <h4>${player}</h4>
+                        <small style="color: var(--text-secondary); display: block; margin: 5px 0;">${topAgentsText}</small>
+                        <small style="color: var(--text-secondary); display: block; margin-bottom: 5px;">${topRolesText}</small>
+                        <select class="agent-dropdown" id="${teamType === 'myTeam' ? 'my' : 'opp'}Agent${index}" onchange="selectAgent('${teamType === 'myTeam' ? 'my' : 'opp'}', ${index})">
+                            <option value="">Select Agent</option>
+                            ${appData.agents.filter(agent => agent && agent.toLowerCase() !== 'n/a').map(agent => `<option value="${agent}">${agent}</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+            };
+
+            let myTeamHTML = '';
+            let oppTeamHTML = '';
+
+            for (let i = 0; i < 5; i++) {
+                if (appData.myTeamPlayers[i]) {
+                    myTeamHTML += await getPlayerAgentHTML(appData.myTeamPlayers[i], 'myTeam', i);
+                }
+                if (appData.oppTeamPlayers[i]) {
+                    oppTeamHTML += await getPlayerAgentHTML(appData.oppTeamPlayers[i], 'oppTeam', i);
+                }
+            }
+            
+            myAgentsContainer.innerHTML = myTeamHTML;
+            oppAgentsContainer.innerHTML = oppTeamHTML;
+        }
+
+        function selectAgent(teamType, index) {
+            const select = document.getElementById(`${teamType}Agent${index}`);
+            const agent = select.value;
+
+            if (teamType === 'my') {
+                if (!appData.myTeamAgents) appData.myTeamAgents = [];
+                appData.myTeamAgents[index] = agent;
+            } else {
+                if (!appData.oppTeamAgents) appData.oppTeamAgents = [];
+                appData.oppTeamAgents[index] = agent;
+            }
+
+            updateAgentDropdowns(teamType);
+
+            const myAgentsSelected = (appData.myTeamAgents || []).filter(a => a && a !== '').length;
+            const oppAgentsSelected = (appData.oppTeamAgents || []).filter(a => a && a !== '').length;
+            
+            if (myAgentsSelected === 5 && oppAgentsSelected === 5) {
+                calculateTeamRoleCompositions();
+                enableStep5();
+            }
+        }
+
+        async function calculateTeamRoleCompositions() {
+            try {
+                const agentRolesResponse = await apiCall('/agents-with-roles');
+                let agentRoles = {};
+                
+                if (agentRolesResponse.success && agentRolesResponse.data) {
+                    agentRoles = agentRolesResponse.data;
+                }
+                
+                const myRoles = { Duelist: 0, Controller: 0, Initiator: 0, Sentinel: 0 };
+                appData.myTeamAgents.forEach(agent => {
+                    if (agent && agentRoles[agent.toLowerCase()]) {
+                        const role = agentRoles[agent.toLowerCase()];
+                        const formattedRole = role.charAt(0).toUpperCase() + role.slice(1);
+                        if (myRoles.hasOwnProperty(formattedRole)) {
+                            myRoles[formattedRole]++;
+                        }
+                    }
+                });
+                
+                const oppRoles = { Duelist: 0, Controller: 0, Initiator: 0, Sentinel: 0 };
+                appData.oppTeamAgents.forEach(agent => {
+                    if (agent && agentRoles[agent.toLowerCase()]) {
+                        const role = agentRoles[agent.toLowerCase()];
+                        const formattedRole = role.charAt(0).toUpperCase() + role.slice(1);
+                        if (oppRoles.hasOwnProperty(formattedRole)) {
+                            oppRoles[formattedRole]++;
+                        }
+                    }
+                });
+                
+                appData.actualRoleCompositions = {
+                    myTeam: myRoles,
+                    oppTeam: oppRoles
+                };
+                
+                document.getElementById('myTeamRoleDisplay').classList.remove('hidden');
+                document.getElementById('myDuelistCount').textContent = myRoles.Duelist;
+                document.getElementById('myInitiatorCount').textContent = myRoles.Initiator;
+                document.getElementById('myControllerCount').textContent = myRoles.Controller;
+                document.getElementById('mySentinelCount').textContent = myRoles.Sentinel;
+                
+                document.getElementById('oppTeamRoleDisplay').classList.remove('hidden');
+                document.getElementById('oppDuelistCount').textContent = oppRoles.Duelist;
+                document.getElementById('oppInitiatorCount').textContent = oppRoles.Initiator;
+                document.getElementById('oppControllerCount').textContent = oppRoles.Controller;
+                document.getElementById('oppSentinelCount').textContent = oppRoles.Sentinel;
+                
+            } catch (error) {
+                appData.actualRoleCompositions = {
+                    myTeam: { agents: appData.myTeamAgents },
+                    oppTeam: { agents: appData.oppTeamAgents }
+                };
+            }
+        }
+
+        function updateAgentDropdowns(teamType) {
+            const prefix = teamType;
+            const selectedAgents = teamType === 'my' ? appData.myTeamAgents : appData.oppTeamAgents;
+
+            for (let i = 0; i < 5; i++) {
+                const select = document.getElementById(`${prefix}Agent${i}`);
+                if (!select) continue;
+
+                const currentValue = select.value;
+
+                select.innerHTML = `
+                    <option value="">Select Agent</option>
+                    ${appData.agents.map(agent => {
+                        const isDisabled = selectedAgents.includes(agent) && agent !== currentValue;
+                        return `<option value="${agent}" ${isDisabled ? 'disabled' : ''}>${agent}</option>`;
+                    }).join('')}
+                `;
+
+                select.value = currentValue;
+            }
+        }
+
+        function clearAgentSelection() {
+            appData.myTeamAgents = [];
+            appData.oppTeamAgents = [];
+            setupAgentSelection();
+            disableStepsFrom(5);
+            
+            document.getElementById('myTeamRoleDisplay').classList.add('hidden');
+            document.getElementById('oppTeamRoleDisplay').classList.add('hidden');
+        }
+
+        function enableStep5() {
+            document.getElementById('step5').classList.remove('disabled');
+        }
+
+        function updateWeight(factor) {
+            const value = document.getElementById(`${factor}Weight`).value;
+            appData.weights[factor] = parseInt(value);
+            document.getElementById(`${factor}Value`).textContent = `${value}%`;
+            
+            // If we have a previous prediction, update the button text to show refresh option
+            if (appData.lastPrediction) {
+                const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
+                if (button && !button.textContent.includes('Refresh')) {
+                    button.innerHTML = 'Refresh Prediction <span style="font-size: 0.8em;">(Weights Changed)</span>';
+                }
+            }
+        }
+
+        function resetWeights() {
+            appData.weights = {
+                teamMatchup: 25,
+                playerSynergy: 20,
+                mapAdvantage: 20,
+                roleComposition: 15,
+                agentSelection: 10,
+                individualForm: 10
+            };
+
+            Object.keys(appData.weights).forEach(factor => {
+                const slider = document.getElementById(`${factor}Weight`);
+                const display = document.getElementById(`${factor}Value`);
+                if (slider) slider.value = appData.weights[factor];
+                if (display) display.textContent = `${appData.weights[factor]}%`;
+            });
+            
+            // Reset button text if weights are reset
+            const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
+            if (button) {
+                button.textContent = 'Calculate Final Prediction';
+            }
+        }
+
+        async function calculateFinalPrediction() {
+            try {
+                // Show loading state on button
+                const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
+                const originalText = button.textContent;
+                button.textContent = 'Calculating...';
+                button.disabled = true;
+
+                const totalWeight = Object.values(appData.weights).reduce((a, b) => a + b, 0);
+                const normalizedWeights = {};
+                Object.keys(appData.weights).forEach(key => {
+                    normalizedWeights[key] = appData.weights[key] / totalWeight;
+                });
+
+                const requestData = {
+                    team_a: appData.selectedMyTeam,
+                    team_b: appData.selectedOppTeam,
+                    map: appData.selectedMap,
+                    consider_synergy: normalizedWeights.playerSynergy > 0,
+                    consider_roles: normalizedWeights.roleComposition > 0
+                };
+
+                const data = await apiCall('/predict/final-outcome', {
+                    method: 'POST',
+                    body: JSON.stringify(requestData)
+                });
+
+                if (data.success) {
+                    appData.lastPrediction = data.data;
+                    displayPredictionResult(data.data, normalizedWeights);
+                    enableStep6();
+                    
+                    // Update button text after successful prediction
+                    button.textContent = 'Recalculate Prediction';
+                } else {
+                    alert('Failed to calculate prediction: ' + (data.error || 'Unknown error'));
+                    button.textContent = originalText;
+                }
+            } catch (error) {
+                alert('Error calculating prediction. Please try again.');
+                const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
+                button.textContent = 'Calculate Final Prediction';
+            } finally {
+                const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
+                button.disabled = false;
+            }
+        }
+
+        function displayPredictionResult(prediction, weights) {
+            const winProb = prediction.final_win_probability * 100;
+            const isMyTeamWinner = prediction.winner === appData.selectedMyTeam;
+
+            const winnerElement = document.getElementById('winnerTeam');
+            if (winnerElement) {
+                winnerElement.textContent = isMyTeamWinner ?
+                    `${appData.selectedMyTeam} Wins` :
+                    `${appData.selectedOppTeam} Wins`;
+                winnerElement.style.color = isMyTeamWinner ? 'var(--success-green)' : 'var(--danger-red)';
+            }
+
+            const probElement = document.getElementById('winProbability');
+            if (probElement) {
+                probElement.textContent = `${winProb.toFixed(1)}%`;
+                // Color code probability based on team
+                probElement.style.color = isMyTeamWinner ? 'var(--success-green)' : 'var(--danger-red)';
+            }
+
+            const confidence = prediction.confidence * 100;
+            const confidenceFill = document.getElementById('confidenceFill');
+            if (confidenceFill) {
+                confidenceFill.style.width = `${confidence}%`;
+                // Update confidence fill color based on confidence level
+                if (confidence > 70) {
+                    confidenceFill.style.background = 'linear-gradient(90deg, var(--success-green), rgba(52, 199, 89, 0.7))';
+                } else if (confidence > 40) {
+                    confidenceFill.style.background = 'linear-gradient(90deg, var(--warning-orange), rgba(255, 149, 0, 0.7))';
+                } else {
+                    confidenceFill.style.background = 'linear-gradient(90deg, var(--danger-red), rgba(255, 59, 48, 0.7))';
+                }
+            }
+
+            const factors = prediction.factors_considered;
+            
+            // Calculate actual factor values based on weights
+            const factorElements = {
+                'factorTeamMatchup': `${(factors.base_prediction * 100).toFixed(1)}%`,
+                'factorPlayerSynergy': appData.teamStats.myTeam ? `${(appData.teamStats.myTeam.teamSynergy * 100).toFixed(0)}%` : '75%',
+                'factorMapAdvantage': `${((factors.map_adjustment + 0.5) * 100).toFixed(1)}%`,
+                'factorRoleComposition': '80%',
+                'factorAgentSelection': '70%',
+                'factorIndividualForm': appData.teamStats.myTeam ? `${(appData.teamStats.myTeam.avgRating * 50).toFixed(0)}%` : '65%'
+            };
+
+            Object.entries(factorElements).forEach(([id, value]) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = value;
+                    // Color code based on value
+                    const numValue = parseFloat(value);
+                    if (numValue >= 70) {
+                        element.style.color = 'var(--success-green)';
+                    } else if (numValue >= 50) {
+                        element.style.color = 'var(--text-primary)';
+                    } else {
+                        element.style.color = 'var(--danger-red)';
+                    }
+                }
+            });
+        }
+
+        function enableStep6() {
+            document.getElementById('step6').classList.remove('disabled', 'hidden');
+
+            setTimeout(() => {
+                document.getElementById('step6').scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }, 100);
+        }
+
+        function disableStepsFrom(stepNumber) {
+            for (let i = stepNumber; i <= 6; i++) {
+                const stepElement = document.getElementById(`step${i}`);
+                if (stepElement) {
+                    stepElement.classList.add('disabled');
+                }
+            }
+
+            const step6 = document.getElementById('step6');
+            if (step6) {
+                step6.classList.add('hidden');
+            }
+        }
+
+        function resetAll() {
+            if (!confirm('Are you sure you want to start over? This will clear all your selections.')) {
+                return;
+            }
+
+            appData = {
+                teams: appData.teams,
+                players: appData.players,
+                maps: appData.maps,
+                agents: appData.agents,
+                selectedMyTeam: null,
+                selectedOppTeam: null,
+                myTeamPlayers: [],
+                oppTeamPlayers: [],
+                selectedMap: null,
+                myTeamAgents: [],
+                oppTeamAgents: [],
+                weights: {
+                    teamMatchup: 25,
+                    playerSynergy: 20,
+                    mapAdvantage: 20,
+                    roleComposition: 15,
+                    agentSelection: 10,
+                    individualForm: 10
+                },
+                teamStats: {
+                    myTeam: null,
+                    oppTeam: null
+                },
+                playerPerformance: {
+                    myTeam: {},
+                    oppTeam: {}
+                },
+                lastPrediction: null
+            };
+
+            clearTeamSelection();
+            resetWeights();
+            
+            // Reset prediction button text
+            const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
+            if (button) {
+                button.textContent = 'Calculate Final Prediction';
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await initApp();
+            } catch (error) {
+                updateAPIStatus('Initialization Failed', true);
+            }
+        });
+    </script>
+</body>
+
+</html>

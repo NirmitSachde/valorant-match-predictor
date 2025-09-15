@@ -1,0 +1,13 @@
+# Environment variables
+.env
+.env.local
+
+# Netlify
+.netlify
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (if you add any later)
+node_modules/

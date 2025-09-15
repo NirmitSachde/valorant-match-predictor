@@ -1,0 +1,13 @@
+[functions]
+  directory = "netlify/functions"
+
+[[edge_functions]]
+  function = "rate-limit"
+  path = "/.netlify/functions/*"
+
+# Rate limiting rules
+[[plugins]]
+  package = "@netlify/plugin-functions-rate-limit"
+  [plugins.inputs]
+    windowMs = 60000 # 1 minute
+    max = 30 # 30 requests per minute per IP
