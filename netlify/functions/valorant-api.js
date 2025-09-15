@@ -17,7 +17,7 @@ exports.handler = async (event, context) => {
   }
 
   // The actual API endpoint (hidden from client)
-  const API_BASE = process.env.VALORANT_API_BASE || 'https://nirmitsachde-valorant-match-predictor.hf.space';
+  const API_BASE = process.env.API_BASE || 'https://nirmitsachde-valorant-match-predictor.hf.space';
   
   // Get the path and query from the request
   const path = event.path.replace('/.netlify/functions/valorant-api', '');
