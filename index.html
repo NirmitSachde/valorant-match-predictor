@@ -1152,11 +1152,11 @@
                 }
 
                 const data = await response.json();
-                updateAPIStatus('Connected');
+                updateAPIStatus('API Connected');
                 return data;
 
             } catch (error) {
-                updateAPIStatus('Connection Error', true);
+                updateAPIStatus('API Connection Error', true);
                 throw error;
             }
         }
@@ -1240,7 +1240,7 @@
                 await loadAllData();
                 setupEventListeners();
                 document.getElementById('loaderOverlay').style.display = 'none';
-                updateAPIStatus('Ready');
+                updateAPIStatus('API Ready');
             } catch (error) {
                 updateAPIStatus('Initialization Failed', true);
             }
