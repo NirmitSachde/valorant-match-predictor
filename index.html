@@ -1059,34 +1059,31 @@
                 <div class="confidence-meter">
                     <div class="confidence-fill" id="confidenceFill"></div>
                 </div>
-                <div class="confidence-explanation">
-                    Confidence level represents how certain the model is about this prediction based on data quality and consistency of the contributing factors.
-                </div>
 
                 <div class="factor-breakdown">
                     <div class="factor-card">
                         <div class="factor-name">Team Matchup</div>
-                        <div class="factor-value" id="factorTeamMatchup">-</div>
+                        <div class="factor-value" id="factorTeamMatchup" style="line-height: 1.3;">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Player Synergy</div>
-                        <div class="factor-value" id="factorPlayerSynergy">-</div>
+                        <div class="factor-value" id="factorPlayerSynergy" style="line-height: 1.3;">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Map Advantage</div>
-                        <div class="factor-value" id="factorMapAdvantage">-</div>
+                        <div class="factor-value" id="factorMapAdvantage" style="line-height: 1.3;">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Role Composition</div>
-                        <div class="factor-value" id="factorRoleComposition">-</div>
+                        <div class="factor-value" id="factorRoleComposition" style="line-height: 1.3;">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Agent Selection</div>
-                        <div class="factor-value" id="factorAgentSelection">-</div>
+                        <div class="factor-value" id="factorAgentSelection" style="line-height: 1.3;">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Individual Form</div>
-                        <div class="factor-value" id="factorIndividualForm">-</div>
+                        <div class="factor-value" id="factorIndividualForm" style="line-height: 1.3;">-</div>
                     </div>
                 </div>
             </div>
@@ -2493,7 +2490,12 @@
                 // Determine winner
                 const winner = finalProbability >= 0.5 ? appData.selectedMyTeam : appData.selectedOppTeam;
 
-                // Store prediction
+                // Log the calculated values for debugging
+                console.log('Factor Scores:', factorScores);
+                console.log('Normalized Weights:', normalizedWeights);
+                console.log('Final Probability:', finalProbability);
+
+                // Ensure the scores are stored in the prediction object
                 appData.lastPrediction = {
                     final_win_probability: finalProbability,
                     winner: winner,
@@ -2503,7 +2505,7 @@
                         map_adjustment: factorScores.mapAdvantage - 0.5,
                         synergy_adjustment: factorScores.playerSynergy - 0.5
                     },
-                    factor_scores: factorScores,
+                    factor_scores: factorScores,  // Make sure this is included
                     weights_used: normalizedWeights
                 };
 
@@ -2525,6 +2527,9 @@
         }
 
         function displayPredictionResult(prediction, weights) {
+            console.log('Displaying prediction:', prediction);
+            console.log('Weights used:', weights);
+            
             const winProb = prediction.final_win_probability * 100;
             const isMyTeamWinner = prediction.winner === appData.selectedMyTeam;
 
@@ -2555,23 +2560,44 @@
                 }
             }
 
-            // Display actual calculated factor scores
+            // Display actual calculated factor scores with weight influence shown
             const factorScores = prediction.factor_scores || {};
-            
+            const weightsUsed = prediction.weights_used || weights;
+
             const factorElements = {
-                'factorTeamMatchup': `${(factorScores.teamMatchup * 100).toFixed(1)}%`,
-                'factorPlayerSynergy': `${(factorScores.playerSynergy * 100).toFixed(1)}%`,
-                'factorMapAdvantage': `${(factorScores.mapAdvantage * 100).toFixed(1)}%`,
-                'factorRoleComposition': `${(factorScores.roleComposition * 100).toFixed(1)}%`,
-                'factorAgentSelection': `${(factorScores.agentSelection * 100).toFixed(1)}%`,
-                'factorIndividualForm': `${(factorScores.individualForm * 100).toFixed(1)}%`
+                'factorTeamMatchup': {
+                    value: (factorScores.teamMatchup * 100).toFixed(1),
+                    weight: (weightsUsed.teamMatchup * 100).toFixed(0)
+                },
+                'factorPlayerSynergy': {
+                    value: (factorScores.playerSynergy * 100).toFixed(1),
+                    weight: (weightsUsed.playerSynergy * 100).toFixed(0)
+                },
+                'factorMapAdvantage': {
+                    value: (factorScores.mapAdvantage * 100).toFixed(1),
+                    weight: (weightsUsed.mapAdvantage * 100).toFixed(0)
+                },
+                'factorRoleComposition': {
+                    value: (factorScores.roleComposition * 100).toFixed(1),
+                    weight: (weightsUsed.roleComposition * 100).toFixed(0)
+                },
+                'factorAgentSelection': {
+                    value: (factorScores.agentSelection * 100).toFixed(1),
+                    weight: (weightsUsed.agentSelection * 100).toFixed(0)
+                },
+                'factorIndividualForm': {
+                    value: (factorScores.individualForm * 100).toFixed(1),
+                    weight: (weightsUsed.individualForm * 100).toFixed(0)
+                }
             };
 
-            Object.entries(factorElements).forEach(([id, value]) => {
+            Object.entries(factorElements).forEach(([id, data]) => {
                 const element = document.getElementById(id);
                 if (element) {
-                    element.textContent = value;
-                    const numValue = parseFloat(value);
+                    // Show both the score and its weight contribution
+                    element.innerHTML = `${data.value}%<br><small style="opacity: 0.7; font-size: 0.7em;">weight: ${data.weight}%</small>`;
+                    
+                    const numValue = parseFloat(data.value);
                     if (numValue >= 70) {
                         element.style.color = 'var(--success-green)';
                     } else if (numValue >= 50) {
