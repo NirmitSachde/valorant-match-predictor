@@ -1059,6 +1059,9 @@
                 <div class="confidence-meter">
                     <div class="confidence-fill" id="confidenceFill"></div>
                 </div>
+                <div class="confidence-explanation">
+                    Confidence level
+                </div>
 
                 <div class="factor-breakdown">
                     <div class="factor-card">
@@ -1786,11 +1789,25 @@
                         }
 
                         let recentFormText = '';
-                        if (stats.recent_form) {
-                            const recentRating = stats.recent_form.recent_rating || 1.0;
-                            const formScore = (stats.recent_form.form_score * 100).toFixed(0);
+                        let recentFormDetails = null;
+                        // Explicitly check for null and valid recent_form object
+                        if (stats.recent_form !== null && stats.recent_form !== undefined && typeof stats.recent_form === 'object') {
+                            const formData = stats.recent_form;
+                            const formScore = (formData.form_score * 100).toFixed(0);
+                            const recentRating = formData.recent_rating || 1.0;
+                            const recentWR = (formData.recent_win_rate * 100).toFixed(0);
+                            const consistency = (formData.consistency * 100).toFixed(0);
+                            
                             recentFormText = `Form: ${formScore}%`;
-                        }
+                            recentFormDetails = {
+                                score: formScore,
+                                rating: recentRating.toFixed(2),
+                                winRate: recentWR,
+                                consistency: consistency,
+                                matches: formData.matches_analyzed || 0
+                            };
+                        } 
+                        // Don't set any form text if recent_form is null
 
                         if (totalGames > 0) {
                             performanceData.push({
@@ -1800,7 +1817,9 @@
                                 kast: Math.round(totalKAST / totalGames),
                                 winRate: Math.round(totalWinRate / totalGames),
                                 games: totalGames,
-                                recentForm: recentFormText
+                                recentForm: recentFormText,
+                                recentFormDetails: recentFormDetails,
+                                hasRecentForm: recentFormDetails !== null
                             });
                         } else {
                             performanceData.push({
@@ -1810,7 +1829,9 @@
                                 kast: 70,
                                 winRate: 50,
                                 games: 0,
-                                recentForm: ''
+                                recentForm: '',
+                                recentFormDetails: null,
+                                hasRecentForm: false
                             });
                         }
                     } else {
@@ -1821,7 +1842,9 @@
                             kast: 70,
                             winRate: 50,
                             games: 0,
-                            recentForm: ''
+                            recentForm: '',
+                            recentFormDetails: null,
+                            hasRecentForm: false
                         });
                     }
                 } catch (e) {
@@ -1832,7 +1855,9 @@
                         kast: 70,
                         winRate: 50,
                         games: 0,
-                        recentForm: ''
+                        recentForm: '',
+                        recentFormDetails: null,
+                        hasRecentForm: false
                     });
                 }
             }
@@ -1848,19 +1873,45 @@
             const grid = document.getElementById(gridId);
             
             if (container && grid) {
-                grid.innerHTML = performanceData.map(data => `
-                    <div class="player-perf-item">
-                        <div class="player-perf-name">${data.player}</div>
-                        <div class="player-perf-stats">
-                            <span class="perf-stat">Rating: <strong>${data.rating}</strong></span>
-                            <span class="perf-stat">K/D: <strong>${data.kdDiff > 0 ? '+' : ''}${data.kdDiff}</strong></span>
-                            <span class="perf-stat">KAST: <strong>${data.kast}%</strong></span>
-                            <span class="perf-stat">WR: <strong>${data.winRate}%</strong></span>
-                            ${data.recentForm ? `<span class="perf-stat" style="color: var(--warning-orange);">${data.recentForm}</span>` : ''}
-                            <span class="perf-stat" style="color: var(--text-muted);">${data.games} games</span>
+                grid.innerHTML = performanceData.map(data => {
+                    let formDisplay = '';
+                    
+                    // Only show form if we actually have recent form data
+                    if (data.hasRecentForm && data.recentFormDetails) {
+                        const details = data.recentFormDetails;
+                        // Color code the form score
+                        let formColor = 'var(--success-green)';
+                        if (parseInt(details.score) < 50) {
+                            formColor = 'var(--danger-red)';
+                        } else if (parseInt(details.score) < 65) {
+                            formColor = 'var(--warning-orange)';
+                        }
+                        
+                        formDisplay = `
+                            <span class="perf-stat" style="color: ${formColor}; font-weight: 600;">
+                                Form: ${details.score}%
+                            </span>
+                            <span class="perf-stat" style="color: var(--text-muted); font-size: 0.7rem;">
+                                (${details.matches} matches)
+                            </span>
+                        `;
+                    }
+                    // Don't show "No recent form" - just omit it entirely if null
+                    
+                    return `
+                        <div class="player-perf-item">
+                            <div class="player-perf-name">${data.player}</div>
+                            <div class="player-perf-stats">
+                                <span class="perf-stat">Rating: <strong>${data.rating}</strong></span>
+                                <span class="perf-stat">K/D: <strong>${data.kdDiff > 0 ? '+' : ''}${data.kdDiff}</strong></span>
+                                <span class="perf-stat">KAST: <strong>${data.kast}%</strong></span>
+                                <span class="perf-stat">WR: <strong>${data.winRate}%</strong></span>
+                                ${formDisplay}
+                                <span class="perf-stat" style="color: var(--text-muted);">${data.games} games</span>
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
                 
                 container.classList.remove('hidden');
             }
@@ -2426,38 +2477,84 @@
                 const agentDiff = myAgentScore - oppAgentScore;
                 factorScores.agentSelection = 0.5 + (agentDiff * 0.5);
 
-                // 6. Calculate Individual Form Score
+                // 6. Calculate Individual Form Score (combines overall rating + recent form when available)
                 if (appData.teamStats.myTeam && appData.teamStats.oppTeam) {
-                    const myRating = appData.teamStats.myTeam.avgRating || 1.0;
-                    const oppRating = appData.teamStats.oppTeam.avgRating || 1.0;
+                    let myFormScore = 0.5; // Default neutral
+                    let oppFormScore = 0.5;
                     
-                    // Include recent form if available
-                    let myFormBonus = 0;
-                    let oppFormBonus = 0;
-                    
-                    if (appData.playerPerformance.myTeam) {
-                        const forms = appData.playerPerformance.myTeam
-                            .filter(p => p.recentForm)
-                            .map(p => parseFloat(p.recentForm.match(/\d+/)?.[0] || 50) / 100);
-                        if (forms.length > 0) {
-                            myFormBonus = forms.reduce((a, b) => a + b, 0) / forms.length * 0.2;
+                    // My team form calculation
+                    if (appData.playerPerformance.myTeam && appData.playerPerformance.myTeam.length > 0) {
+                        const playersWithForm = appData.playerPerformance.myTeam.filter(p => p.hasRecentForm && p.recentFormDetails);
+                        const playersWithoutForm = appData.playerPerformance.myTeam.filter(p => !p.hasRecentForm || !p.recentFormDetails);
+                        
+                        let totalScore = 0;
+                        let totalWeight = 0;
+                        
+                        // Players with recent form - use actual form score
+                        playersWithForm.forEach(p => {
+                            const formScore = parseFloat(p.recentFormDetails.score) / 100;
+                            totalScore += formScore * 1.5; // Weight recent form more heavily
+                            totalWeight += 1.5;
+                        });
+                        
+                        // Players without recent form - use rating as proxy
+                        playersWithoutForm.forEach(p => {
+                            const ratingScore = Math.min(0.8, Math.max(0.2, (parseFloat(p.rating) - 0.8) / 0.4));
+                            totalScore += ratingScore * 1.0; // Lower weight for estimated scores
+                            totalWeight += 1.0;
+                        });
+                        
+                        if (totalWeight > 0) {
+                            myFormScore = totalScore / totalWeight;
                         }
                     }
                     
-                    if (appData.playerPerformance.oppTeam) {
-                        const forms = appData.playerPerformance.oppTeam
-                            .filter(p => p.recentForm)
-                            .map(p => parseFloat(p.recentForm.match(/\d+/)?.[0] || 50) / 100);
-                        if (forms.length > 0) {
-                            oppFormBonus = forms.reduce((a, b) => a + b, 0) / forms.length * 0.2;
+                    // Opponent team form calculation
+                    if (appData.playerPerformance.oppTeam && appData.playerPerformance.oppTeam.length > 0) {
+                        const playersWithForm = appData.playerPerformance.oppTeam.filter(p => p.hasRecentForm && p.recentFormDetails);
+                        const playersWithoutForm = appData.playerPerformance.oppTeam.filter(p => !p.hasRecentForm || !p.recentFormDetails);
+                        
+                        let totalScore = 0;
+                        let totalWeight = 0;
+                        
+                        playersWithForm.forEach(p => {
+                            const formScore = parseFloat(p.recentFormDetails.score) / 100;
+                            totalScore += formScore * 1.5;
+                            totalWeight += 1.5;
+                        });
+                        
+                        playersWithoutForm.forEach(p => {
+                            const ratingScore = Math.min(0.8, Math.max(0.2, (parseFloat(p.rating) - 0.8) / 0.4));
+                            totalScore += ratingScore * 1.0;
+                            totalWeight += 1.0;
+                        });
+                        
+                        if (totalWeight > 0) {
+                            oppFormScore = totalScore / totalWeight;
                         }
                     }
                     
-                    const myTotalForm = (myRating / 2) + myFormBonus; // Rating normalized to ~0.5
-                    const oppTotalForm = (oppRating / 2) + oppFormBonus;
-                    
-                    const formDiff = myTotalForm - oppTotalForm;
+                    // Convert to relative win probability
+                    const formDiff = myFormScore - oppFormScore;
                     factorScores.individualForm = 0.5 + (formDiff * 0.5);
+                    
+                    // Log for debugging
+                    console.log('Individual Form Calculation:', {
+                        myTeam: appData.playerPerformance.myTeam?.map(p => ({
+                            player: p.player,
+                            hasForm: p.hasRecentForm,
+                            formScore: p.recentFormDetails?.score || 'N/A'
+                        })),
+                        oppTeam: appData.playerPerformance.oppTeam?.map(p => ({
+                            player: p.player,
+                            hasForm: p.hasRecentForm,
+                            formScore: p.recentFormDetails?.score || 'N/A'
+                        })),
+                        myFormScore,
+                        oppFormScore,
+                        formDiff,
+                        finalScore: factorScores.individualForm
+                    });
                 }
 
                 // Calculate final weighted probability
