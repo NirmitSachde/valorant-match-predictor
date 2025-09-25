@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Valorant Advanced Team Builder & Match Predictor</title>
+    <title>VCT Match Predictor</title>
     <style>
         * {
             margin: 0;
@@ -450,6 +449,7 @@
             display: flex;
             gap: 12px;
             font-size: 0.75rem;
+            flex-wrap: wrap;
         }
 
         .perf-stat {
@@ -722,6 +722,7 @@
             font-size: 1.5rem;
             font-weight: 600;
             color: var(--text-primary);
+            line-height: 1.3;
         }
 
         button {
@@ -764,18 +765,95 @@
             border: 2px solid var(--border-subtle);
             border-top: 2px solid var(--text-secondary);
         }
-        .player-perf-stats {
+
+        .agent-dropdown-container {
+            position: relative;
+        }
+
+        .agent-dropdown-custom {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--valorant-dark);
+            border: 1px solid var(--border-subtle);
+            border-radius: 4px;
+            z-index: 1000;
+            margin-top: 2px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .agent-option {
             display: flex;
-            gap: 12px;
-            font-size: 0.75rem;
-            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .agent-option:last-child {
+            border-bottom: none;
+        }
+
+        .agent-option:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .agent-option.selected {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .agent-option.highlighted {
+            background: rgba(255, 70, 84, 0.2) !important;
+            border-left: 2px solid var(--valorant-red);
+        }
+
+        .agent-icon {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2px;
+        }
+
+        .agent-name {
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .agent-dropdown-selected {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 6px;
+            background: var(--valorant-dark);
+            border: 1px solid var(--border-subtle);
+            border-radius: 4px;
+            cursor: pointer;
+            min-height: 36px;
+        }
+
+        .agent-dropdown-selected:hover {
+            border-color: var(--text-secondary);
+        }
+
+        .agent-dropdown-selected .agent-icon {
+            width: 24px;
+            height: 24px;
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <h1>Valorant Advanced Team Builder & Match Predictor</h1>
+        <h1>VCT Match Predictor</h1>
 
         <!-- API Status -->
         <div id="apiStatus" class="api-status">
@@ -807,20 +885,25 @@
                     <h3>My Team</h3>
                     <div class="search-select">
                         <input type="text" class="search-input" id="myTeamSearch"
-                            placeholder="Search and select your team..." onkeyup="filterTeams('myTeam')">
+                               placeholder="Search and select your team..." 
+                               onkeyup="filterTeams('myTeam')"
+                               onfocus="showTeamDropdown('myTeam')">
                         <div class="dropdown-list hidden" id="myTeamDropdown"></div>
                     </div>
-                    <div id="myTeamSelected" style="margin-top: 15px; font-weight: 500;"></div>
+                    <div id="myTeamSelected" style="margin-top: 10px; font-weight: 500;"></div>
                 </div>
 
                 <div class="team-panel">
                     <h3>Opponent Team</h3>
                     <div class="search-select">
                         <input type="text" class="search-input" id="oppTeamSearch"
-                            placeholder="Search and select opponent team..." onkeyup="filterTeams('oppTeam')" disabled>
+                               placeholder="Select your team first..." 
+                               onkeyup="filterTeams('oppTeam')"
+                               onfocus="showTeamDropdown('oppTeam')"
+                               disabled>
                         <div class="dropdown-list hidden" id="oppTeamDropdown"></div>
                     </div>
-                    <div id="oppTeamSelected" style="margin-top: 15px; font-weight: 500;"></div>
+                    <div id="oppTeamSelected" style="margin-top: 10px; font-weight: 500;"></div>
                 </div>
             </div>
         </div>
@@ -839,53 +922,11 @@
                 <div class="team-panel">
                     <h3 id="myTeamPlayersHeader">My Team Players</h3>
                     <div id="myTeamPlayers"></div>
-                    <div id="myTeamStatsDisplay" class="team-stats-summary hidden">
-                        <h4>Team Statistics</h4>
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <div class="stat-value" id="myTeamSynergyValue">-</div>
-                                <div class="stat-label">Team Synergy</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="myTeamPairsValue">-</div>
-                                <div class="stat-label">Pair Synergy</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="myTeamRatingValue">-</div>
-                                <div class="stat-label">Avg Rating</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="myTeamPerformanceDisplay" class="player-performance-section hidden">
-                        <h4>Individual Performance</h4>
-                        <div class="player-performance-grid" id="myTeamPerformanceGrid"></div>
-                    </div>
                 </div>
 
                 <div class="team-panel">
                     <h3 id="oppTeamPlayersHeader">Opponent Players</h3>
                     <div id="oppTeamPlayers"></div>
-                    <div id="oppTeamStatsDisplay" class="team-stats-summary hidden">
-                        <h4>Team Statistics</h4>
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <div class="stat-value" id="oppTeamSynergyValue">-</div>
-                                <div class="stat-label">Team Synergy</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="oppTeamPairsValue">-</div>
-                                <div class="stat-label">Pair Synergy</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="oppTeamRatingValue">-</div>
-                                <div class="stat-label">Avg Rating</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="oppTeamPerformanceDisplay" class="player-performance-section hidden">
-                        <h4>Individual Performance</h4>
-                        <div class="player-performance-grid" id="oppTeamPerformanceGrid"></div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1066,36 +1107,113 @@
                 <div class="factor-breakdown">
                     <div class="factor-card">
                         <div class="factor-name">Team Matchup</div>
-                        <div class="factor-value" id="factorTeamMatchup" style="line-height: 1.3;">-</div>
+                        <div class="factor-value" id="factorTeamMatchup">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Player Synergy</div>
-                        <div class="factor-value" id="factorPlayerSynergy" style="line-height: 1.3;">-</div>
+                        <div class="factor-value" id="factorPlayerSynergy">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Map Advantage</div>
-                        <div class="factor-value" id="factorMapAdvantage" style="line-height: 1.3;">-</div>
+                        <div class="factor-value" id="factorMapAdvantage">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Role Composition</div>
-                        <div class="factor-value" id="factorRoleComposition" style="line-height: 1.3;">-</div>
+                        <div class="factor-value" id="factorRoleComposition">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Agent Selection</div>
-                        <div class="factor-value" id="factorAgentSelection" style="line-height: 1.3;">-</div>
+                        <div class="factor-value" id="factorAgentSelection">-</div>
                     </div>
                     <div class="factor-card">
                         <div class="factor-name">Individual Form</div>
-                        <div class="factor-value" id="factorIndividualForm" style="line-height: 1.3;">-</div>
+                        <div class="factor-value" id="factorIndividualForm">-</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Footer -->
+    <footer style="margin-top: 60px; padding: 30px 0; border-top: 1px solid var(--border-subtle);">
+        <div style="max-width: 1400px; margin: 0 auto; text-align: center;">
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: var(--text-primary); font-size: 1.1rem; font-weight: 600; margin-bottom: 10px;">Connect with the Developer</h3>
+                <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 20px;">Built with passion for the Valorant esports community</p>
+            </div>
+            
+            <div style="display: flex; justify-content: center; gap: 30px; flex-wrap: wrap;">
+                <a href="https://www.linkedin.com/in/nirmit-sachde/" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   style="display: inline-flex; align-items: center; gap: 8px; color: var(--text-primary); text-decoration: none; padding: 10px 20px; background: var(--valorant-gray); border-radius: 6px; border: 1px solid var(--border-subtle); transition: all 0.2s;"
+                   onmouseover="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.borderColor='var(--text-secondary)'; this.style.transform='translateY(-2px)'"
+                   onmouseout="this.style.background='var(--valorant-gray)'; this.style.borderColor='var(--border-subtle)'; this.style.transform='translateY(0)'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                    </svg>
+                    LinkedIn
+                </a>
+                
+                <a href="mailto:sachde.n@northeastern.edu" 
+                   style="display: inline-flex; align-items: center; gap: 8px; color: var(--text-primary); text-decoration: none; padding: 10px 20px; background: var(--valorant-gray); border-radius: 6px; border: 1px solid var(--border-subtle); transition: all 0.2s;"
+                   onmouseover="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.borderColor='var(--text-secondary)'; this.style.transform='translateY(-2px)'"
+                   onmouseout="this.style.background='var(--valorant-gray)'; this.style.borderColor='var(--border-subtle)'; this.style.transform='translateY(0)'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                    Email
+                </a>
+            </div>
+            
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-subtle);">
+                <p style="color: var(--text-muted); font-size: 0.75rem;">
+                    © 2025 VCT Match Predictor | Data-driven esports analytics
+                </p>
+                <p style="color: var(--text-muted); font-size: 0.7rem; margin-top: 10px;">
+                    VCT Match Predictor is a community project and is not affiliated with or endorsed by Riot Games.
+                    Valorant and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+                </p>
+            </div>
+        </div>
+    </footer>
+
     <script>
         // Configuration
         const API_BASE = 'https://nirmitsachde-valorant-match-predictor.hf.space';
+        
+        // Agent icon mapping
+        const agentIcons = {
+            'brimstone': 'https://media.valorant-api.com/agents/9f0d8ba9-4140-b941-57d3-a7ad57c6b417/displayicon.png',
+            'viper': 'https://media.valorant-api.com/agents/707eab51-4836-f488-046a-cda6bf494859/displayicon.png',
+            'omen': 'https://media.valorant-api.com/agents/8e253930-4c05-31dd-1b6c-968525494517/displayicon.png',
+            'killjoy': 'https://media.valorant-api.com/agents/1e58de9c-4950-5125-93e9-a0aee9f98746/displayicon.png',
+            'cypher': 'https://media.valorant-api.com/agents/117ed9e3-49f3-6512-3ccf-0cada7e3823b/displayicon.png',
+            'sova': 'https://media.valorant-api.com/agents/320b2a48-4d9b-a075-30f1-1f93a9b638fa/displayicon.png',
+            'sage': 'https://media.valorant-api.com/agents/569fdd95-4d10-43ab-ca70-79becc718b46/displayicon.png',
+            'phoenix': 'https://media.valorant-api.com/agents/eb93336a-449b-9c1b-0a54-a891f7921d69/displayicon.png',
+            'jett': 'https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png',
+            'reyna': 'https://media.valorant-api.com/agents/a3bfb853-43b2-7238-a4f1-ad90e9e46bcc/displayicon.png',
+            'raze': 'https://media.valorant-api.com/agents/f94c3b30-42be-e959-889c-5aa313dba261/displayicon.png',
+            'breach': 'https://media.valorant-api.com/agents/5f8d3a7f-467b-97f3-062c-13acf203c006/displayicon.png',
+            'skye': 'https://media.valorant-api.com/agents/6f2a04ca-43e0-be17-7f36-b3908627744d/displayicon.png',
+            'yoru': 'https://media.valorant-api.com/agents/7f94d92c-4234-0a36-9646-3a87eb8b5c89/displayicon.png',
+            'astra': 'https://media.valorant-api.com/agents/41fb69c1-4189-7b37-f117-bcaf1e96f1bf/displayicon.png',
+            'kayo': 'https://media.valorant-api.com/agents/601dbbe7-43ce-be57-2a40-4abd24953621/displayicon.png',
+            'kay/o': 'https://media.valorant-api.com/agents/601dbbe7-43ce-be57-2a40-4abd24953621/displayicon.png',
+            'chamber': 'https://media.valorant-api.com/agents/22697a3d-45bf-8dd7-4fec-84a9e28c69d7/displayicon.png',
+            'neon': 'https://media.valorant-api.com/agents/bb2a4828-46eb-8cd1-e765-15848195d751/displayicon.png',
+            'fade': 'https://media.valorant-api.com/agents/dade69b4-4f5a-8528-247b-219e5a1facd6/displayicon.png',
+            'harbor': 'https://media.valorant-api.com/agents/95b78ed7-4637-86d9-7e41-71ba8c293152/displayicon.png',
+            'gekko': 'https://media.valorant-api.com/agents/e370fa57-4757-3604-3648-499e1f642d3f/displayicon.png',
+            'deadlock': 'https://media.valorant-api.com/agents/cc8b64c8-4b25-4ff9-6e7f-37b4da43d235/displayicon.png',
+            'iso': 'https://media.valorant-api.com/agents/0e38b510-41a8-5780-5e8f-568b2a4f2d6c/displayicon.png',
+            'clove': 'https://media.valorant-api.com/agents/1dbf2edd-4729-0984-3115-daa5eed44993/displayicon.png',
+            'vyse': 'https://media.valorant-api.com/agents/efba5359-4016-a1e5-7626-b1ae76895940/displayicon.png',
+            'waylay': 'https://media.valorant-api.com/agents/df1cb487-4902-002e-5c17-d28e83e78588/displayicon.png',
+            'tejo': 'https://media.valorant-api.com/agents/b444168c-4e35-8076-db47-ef9bf368f384/displayicon.png'
+        };
 
         // Global state
         let appData = {
@@ -1126,18 +1244,27 @@
                 myTeam: {},
                 oppTeam: {}
             },
+            actualRoleCompositions: null,
             lastPrediction: null
         };
 
         const synergyCache = new Map();
 
+        // Utility functions
         function updateAPIStatus(status, isError = false) {
             const statusEl = document.getElementById('apiStatusText');
             const containerEl = document.getElementById('apiStatus');
-
             if (statusEl) statusEl.textContent = status;
-            if (containerEl) {
-                containerEl.className = 'api-status ' + (isError ? 'error' : '');
+            if (containerEl) containerEl.className = 'api-status ' + (isError ? 'error' : '');
+        }
+
+        async function safeApiCall(endpoint, options, defaultValue) {
+            try {
+                const response = await apiCall(endpoint, options);
+                return response.success ? response : defaultValue;
+            } catch (error) {
+                console.error(`API call failed for ${endpoint}:`, error);
+                return defaultValue;
             }
         }
 
@@ -1153,14 +1280,11 @@
                     }
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                 const data = await response.json();
                 updateAPIStatus('API Connected');
                 return data;
-
             } catch (error) {
                 updateAPIStatus('API Connection Error', true);
                 throw error;
@@ -1180,79 +1304,34 @@
             }
         }
 
-        function calculatePlayerStatsScore(player, playerStats) {
-            if (!player || !playerStats || !playerStats[player]) return 0;
-
-            const stats = playerStats[player];
-            let totalScore = 0;
-            let weightedGames = 0;
-
-            const agents = stats.agents || {};
-            for (const [agentName, agentData] of Object.entries(agents)) {
-                const games = agentData.games || 0;
-                const rating = agentData.avg_rating || 1.0;
-                const kdDiff = agentData.avg_kd_diff || 0;
-                const kast = agentData.avg_kast || 70;
-                const winRate = agentData.win_rate || 50;
-
-                // Convert KD diff to KD ratio (approximate)
-                const kdRatio = 1.0 + (kdDiff / 10);
-                
-                // Calculate agent score using available metrics
-                const normalizedWinRate = winRate / 100;
-                const normalizedKast = kast / 100;
-                const agentScore = (rating * 0.35) + (kdRatio * 0.25) + (normalizedKast * 0.2) + (normalizedWinRate * 0.2);
-
-                totalScore += agentScore * games;
-                weightedGames += games;
-            }
-
-            // Include recent form if available
-            if (stats.recent_form) {
-                const formScore = stats.recent_form.form_score || 0.5;
-                totalScore = totalScore * 0.8 + formScore * 0.2;
-            }
-
-            return weightedGames > 0 ? totalScore / weightedGames : 0;
+        function createStatsDisplay(teamType) {
+            const id = teamType === 'myTeam' ? 'myTeam' : 'oppTeam';
+            return `
+                <div id="${id}StatsDisplay" class="team-stats-summary hidden">
+                    <h4>Team Statistics</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="${id}SynergyValue">-</div>
+                            <div class="stat-label">Team Synergy</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="${id}PairsValue">-</div>
+                            <div class="stat-label">Pair Synergy</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="${id}RatingValue">-</div>
+                            <div class="stat-label">Avg Rating</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="${id}PerformanceDisplay" class="player-performance-section hidden">
+                    <h4>Individual Performance</h4>
+                    <div class="player-performance-grid" id="${id}PerformanceGrid"></div>
+                </div>
+            `;
         }
 
-        async function getTeamTopPlayers(team) {
-            try {
-                const response = await apiCall(`/players?team=${encodeURIComponent(team)}&include_historical=true`);
-
-                if (!response.success || !response.data || !response.data.players) {
-                    return { allPlayers: [], topPlayers: [] };
-                }
-
-                const teamPlayers = response.data.players;
-                const playerScores = [];
-
-                for (const player of teamPlayers) {
-                    try {
-                        const statsResponse = await apiCall(`/player-stats/${encodeURIComponent(player)}`);
-                        if (statsResponse.success && statsResponse.data) {
-                            const score = calculatePlayerStatsScore(player, { [player]: statsResponse.data });
-                            playerScores.push({ player, score });
-                        } else {
-                            playerScores.push({ player, score: 0 });
-                        }
-                    } catch (e) {
-                        playerScores.push({ player, score: 0 });
-                    }
-                }
-
-                playerScores.sort((a, b) => b.score - a.score);
-                const topPlayers = playerScores.slice(0, 5).map(p => p.player);
-
-                return {
-                    allPlayers: teamPlayers,
-                    topPlayers: topPlayers
-                };
-            } catch (error) {
-                return { allPlayers: [], topPlayers: [] };
-            }
-        }
-
+        // Data loading functions
         async function initApp() {
             try {
                 await loadAllData();
@@ -1279,19 +1358,17 @@
 
                     if (data.success) {
                         let items = [];
-                        if (step.key && data.data && data.data[step.key]) {
+                        if (step.key && data.data?.[step.key]) {
                             items = data.data[step.key];
                         } else if (Array.isArray(data.data)) {
                             items = data.data;
                         } else if (data.data) {
                             items = Object.values(data.data);
                         }
-
                         appData[step.name] = items;
                     } else {
                         appData[step.name] = [];
                     }
-
                 } catch (error) {
                     appData[step.name] = [];
                 }
@@ -1300,31 +1377,32 @@
             document.getElementById('loadingStatus').textContent = 'Ready!';
         }
 
+        // Event listeners setup
         function setupEventListeners() {
             const myTeamSearch = document.getElementById('myTeamSearch');
             const oppTeamSearch = document.getElementById('oppTeamSearch');
 
             if (myTeamSearch) {
-                myTeamSearch.addEventListener('focus', function () {
-                    showTeamDropdown('myTeam');
-                });
+                myTeamSearch.addEventListener('focus', () => showTeamDropdown('myTeam'));
             }
 
             if (oppTeamSearch) {
-                oppTeamSearch.addEventListener('focus', function () {
-                    if (appData.selectedMyTeam) {
-                        showTeamDropdown('oppTeam');
-                    }
+                oppTeamSearch.addEventListener('focus', () => {
+                    if (appData.selectedMyTeam) showTeamDropdown('oppTeam');
                 });
             }
 
-            document.addEventListener('click', function (event) {
+            document.addEventListener('click', (event) => {
                 if (!event.target.closest('.search-select')) {
                     document.querySelectorAll('.dropdown-list').forEach(d => d.classList.add('hidden'));
+                }
+                if (!event.target.closest('.agent-dropdown-container')) {
+                    document.querySelectorAll('.agent-dropdown-custom').forEach(d => d.classList.add('hidden'));
                 }
             });
         }
 
+        // Team selection functions
         function showTeamDropdown(teamType) {
             const dropdown = document.getElementById(`${teamType}Dropdown`);
             const searchInput = document.getElementById(`${teamType}Search`);
@@ -1381,10 +1459,22 @@
             disableStepsFrom(2);
         }
 
+        // Player selection functions
         function enableStep2() {
             document.getElementById('step2').classList.remove('disabled');
             document.getElementById('myTeamPlayersHeader').textContent = appData.selectedMyTeam + ' Players';
             document.getElementById('oppTeamPlayersHeader').textContent = appData.selectedOppTeam + ' Players';
+            
+            const myTeamPanel = document.querySelector('#step2 .team-panel:first-child');
+            const oppTeamPanel = document.querySelector('#step2 .team-panel:last-child');
+            
+            if (!document.getElementById('myTeamStatsDisplay')) {
+                myTeamPanel.insertAdjacentHTML('beforeend', createStatsDisplay('myTeam'));
+            }
+            if (!document.getElementById('oppTeamStatsDisplay')) {
+                oppTeamPanel.insertAdjacentHTML('beforeend', createStatsDisplay('oppTeam'));
+            }
+            
             setupPlayerSelection();
         }
 
@@ -1425,6 +1515,75 @@
                     <div id="${teamType}PlayerSelected${index}" style="margin-top: 10px; font-weight: 500;"></div>
                 </div>
             `;
+        }
+
+        function calculatePlayerStatsScore(player, playerStats) {
+            if (!player || !playerStats?.[player]) return 0;
+
+            const stats = playerStats[player];
+            let totalScore = 0;
+            let weightedGames = 0;
+
+            const agents = stats.agents || {};
+            for (const [agentName, agentData] of Object.entries(agents)) {
+                const games = agentData.games || 0;
+                const rating = agentData.avg_rating || 1.0;
+                const kdDiff = agentData.avg_kd_diff || 0;
+                const kast = agentData.avg_kast || 70;
+                const winRate = agentData.win_rate || 50;
+
+                const kdRatio = 1.0 + (kdDiff / 10);
+                const normalizedWinRate = winRate / 100;
+                const normalizedKast = kast / 100;
+                const agentScore = (rating * 0.35) + (kdRatio * 0.25) + (normalizedKast * 0.2) + (normalizedWinRate * 0.2);
+
+                totalScore += agentScore * games;
+                weightedGames += games;
+            }
+
+            if (stats.recent_form) {
+                const formScore = stats.recent_form.form_score || 0.5;
+                totalScore = totalScore * 0.8 + formScore * 0.2;
+            }
+
+            return weightedGames > 0 ? totalScore / weightedGames : 0;
+        }
+
+        async function getTeamTopPlayers(team) {
+            try {
+                const response = await apiCall(`/players?team=${encodeURIComponent(team)}&include_historical=true`);
+
+                if (!response.success || !response.data?.players) {
+                    return { allPlayers: [], topPlayers: [] };
+                }
+
+                const teamPlayers = response.data.players;
+                const playerScores = [];
+
+                for (const player of teamPlayers) {
+                    try {
+                        const statsResponse = await apiCall(`/player-stats/${encodeURIComponent(player)}`);
+                        if (statsResponse.success && statsResponse.data) {
+                            const score = calculatePlayerStatsScore(player, { [player]: statsResponse.data });
+                            playerScores.push({ player, score });
+                        } else {
+                            playerScores.push({ player, score: 0 });
+                        }
+                    } catch (e) {
+                        playerScores.push({ player, score: 0 });
+                    }
+                }
+
+                playerScores.sort((a, b) => b.score - a.score);
+                const topPlayers = playerScores.slice(0, 5).map(p => p.player);
+
+                return {
+                    allPlayers: teamPlayers,
+                    topPlayers: topPlayers
+                };
+            } catch (error) {
+                return { allPlayers: [], topPlayers: [] };
+            }
         }
 
         async function setupPlayerDropdown(teamType, index) {
@@ -1486,18 +1645,14 @@
             
             if (!dropdown || !searchInput) return;
             
-            // Show loading immediately
             dropdown.classList.remove('hidden');
             
-            // Check if player list is still being loaded
             if (window[`${teamType}PlayerListLoading${index}`] || !window[`${teamType}PlayerList${index}`]) {
                 showLoadingInDropdown(`${teamType}PlayerDropdown${index}`, `Loading ${teamType === 'myTeam' ? appData.selectedMyTeam : appData.selectedOppTeam} players...`);
                 
-                // If data isn't ready, setup the dropdown first
                 if (!window[`${teamType}PlayerList${index}`]) {
                     await setupPlayerDropdown(teamType, index);
                 } else {
-                    // Wait for loading to complete
                     while (window[`${teamType}PlayerListLoading${index}`]) {
                         await new Promise(resolve => setTimeout(resolve, 100));
                     }
@@ -1513,10 +1668,7 @@
             let displayPlayers = [...playerList];
 
             if (currentlySelected.length > 0) {
-                // Update loading message
                 showLoadingInDropdown(`${teamType}PlayerDropdown${index}`, 'Calculating synergies...');
-                
-                // Small delay to show the loading message
                 await new Promise(resolve => setTimeout(resolve, 10));
                 
                 const allSynergies = {};
@@ -1564,28 +1716,17 @@
                 }
                 
                 displayPlayers.sort((a, b) => {
-                    if (a.synergyTier !== b.synergyTier) {
-                        return a.synergyTier - b.synergyTier;
-                    }
-                    
+                    if (a.synergyTier !== b.synergyTier) return a.synergyTier - b.synergyTier;
                     if (a.synergyTier <= 4 && b.synergyTier <= 4) {
-                        if (a.avgSynergy !== b.avgSynergy) {
-                            return b.avgSynergy - a.avgSynergy;
-                        }
+                        if (a.avgSynergy !== b.avgSynergy) return b.avgSynergy - a.avgSynergy;
                     }
-                    
-                    if (a.priority !== b.priority) {
-                        return a.priority - b.priority;
-                    }
-                    
+                    if (a.priority !== b.priority) return a.priority - b.priority;
                     return a.player.localeCompare(b.player);
                 });
             }
 
-            if (searchValue && searchValue.length > 0) {
-                displayPlayers = displayPlayers.filter(p =>
-                    p.player.toLowerCase().includes(searchValue)
-                );
+            if (searchValue) {
+                displayPlayers = displayPlayers.filter(p => p.player.toLowerCase().includes(searchValue));
             }
 
             dropdown.innerHTML = displayPlayers.map((playerInfo) => {
@@ -1604,18 +1745,13 @@
                     const avgSynergyPercent = Math.round(playerInfo.avgSynergy * 100);
                     
                     let synergyClass = '';
-                    if (playerInfo.synergyTier === 1) {
+                    if (playerInfo.synergyTier <= 2) {
                         synergyClass = 'high';
-                        badges += `<span class="synergy-badge ${synergyClass}">${playerInfo.synergyCount}/${currentlySelected.length} • ${avgSynergyPercent}%</span>`;
-                    } else if (playerInfo.synergyTier === 2) {
-                        synergyClass = 'high';
-                        badges += `<span class="synergy-badge ${synergyClass}">${playerInfo.synergyCount}/${currentlySelected.length} • ${avgSynergyPercent}%</span>`;
                     } else if (playerInfo.synergyTier === 3) {
                         synergyClass = 'medium';
-                        badges += `<span class="synergy-badge ${synergyClass}">${playerInfo.synergyCount}/${currentlySelected.length} • ${avgSynergyPercent}%</span>`;
-                    } else {
-                        badges += `<span class="synergy-badge">${playerInfo.synergyCount}/${currentlySelected.length}</span>`;
                     }
+                    
+                    badges += `<span class="synergy-badge ${synergyClass}">${playerInfo.synergyCount}/${currentlySelected.length} • ${avgSynergyPercent}%</span>`;
                 }
 
                 return `<div class="${className}" 
@@ -1669,217 +1805,141 @@
             setupPlayerSelection();
             disableStepsFrom(3);
             
-            document.getElementById('myTeamStatsDisplay').classList.add('hidden');
-            document.getElementById('oppTeamStatsDisplay').classList.add('hidden');
-            document.getElementById('myTeamPerformanceDisplay').classList.add('hidden');
-            document.getElementById('oppTeamPerformanceDisplay').classList.add('hidden');
+            ['myTeam', 'oppTeam'].forEach(team => {
+                document.getElementById(`${team}StatsDisplay`)?.classList.add('hidden');
+                document.getElementById(`${team}PerformanceDisplay`)?.classList.add('hidden');
+            });
         }
 
-        async function calculateTeamSynergies() {
-            try {
-                const myTeamData = await apiCall('/predict/player-synergy', {
-                    method: 'POST',
-                    body: JSON.stringify({ players: appData.myTeamPlayers })
-                });
+        async function fetchTeamSynergies(players) {
+            const synergyData = await safeApiCall('/predict/player-synergy', {
+                method: 'POST',
+                body: JSON.stringify({ players })
+            }, { success: false });
 
-                if (myTeamData.success) {
-                    const synergy = myTeamData.data.team_synergy;
-                    const avgRating = myTeamData.data.avg_player_rating;
+            if (!synergyData.success) return null;
 
-                    let avgPairSynergy = 0.5;
-                    try {
-                        const pairResponse = await apiCall('/calculate-synergies', {
-                            method: 'POST',
-                            body: JSON.stringify(appData.myTeamPlayers)
-                        });
+            const synergy = synergyData.data.team_synergy;
+            const avgRating = synergyData.data.avg_player_rating;
 
-                        if (pairResponse.success && pairResponse.data) {
-                            const synergies = Object.values(pairResponse.data);
-                            if (synergies.length > 0) {
-                                avgPairSynergy = synergies.reduce((a, b) => a + b, 0) / synergies.length;
-                            }
-                        }
-                    } catch (e) {
-                        // Silent fail
-                    }
+            let avgPairSynergy = 0.5;
+            const pairResponse = await safeApiCall('/calculate-synergies', {
+                method: 'POST',
+                body: JSON.stringify(players)
+            }, { success: false });
 
-                    appData.teamStats.myTeam = {
-                        teamSynergy: synergy,
-                        pairSynergy: avgPairSynergy,
-                        avgRating: avgRating
-                    };
-
-                    document.getElementById('myTeamStatsDisplay').classList.remove('hidden');
-                    document.getElementById('myTeamSynergyValue').textContent = `${(synergy * 100).toFixed(0)}%`;
-                    document.getElementById('myTeamPairsValue').textContent = `${(avgPairSynergy * 100).toFixed(0)}%`;
-                    document.getElementById('myTeamRatingValue').textContent = avgRating.toFixed(2);
+            if (pairResponse.success && pairResponse.data) {
+                const synergies = Object.values(pairResponse.data);
+                if (synergies.length > 0) {
+                    avgPairSynergy = synergies.reduce((a, b) => a + b, 0) / synergies.length;
                 }
-
-                // Load individual player performance for my team
-                await loadPlayerPerformance('myTeam', appData.myTeamPlayers);
-
-                const oppTeamData = await apiCall('/predict/player-synergy', {
-                    method: 'POST',
-                    body: JSON.stringify({ players: appData.oppTeamPlayers })
-                });
-
-                if (oppTeamData.success) {
-                    const synergy = oppTeamData.data.team_synergy;
-                    const avgRating = oppTeamData.data.avg_player_rating;
-
-                    let avgPairSynergy = 0.5;
-                    try {
-                        const pairResponse = await apiCall('/calculate-synergies', {
-                            method: 'POST',
-                            body: JSON.stringify(appData.oppTeamPlayers)
-                        });
-
-                        if (pairResponse.success && pairResponse.data) {
-                            const synergies = Object.values(pairResponse.data);
-                            if (synergies.length > 0) {
-                                avgPairSynergy = synergies.reduce((a, b) => a + b, 0) / synergies.length;
-                            }
-                        }
-                    } catch (e) {
-                        // Silent fail
-                    }
-
-                    appData.teamStats.oppTeam = {
-                        teamSynergy: synergy,
-                        pairSynergy: avgPairSynergy,
-                        avgRating: avgRating
-                    };
-
-                    document.getElementById('oppTeamStatsDisplay').classList.remove('hidden');
-                    document.getElementById('oppTeamSynergyValue').textContent = `${(synergy * 100).toFixed(0)}%`;
-                    document.getElementById('oppTeamPairsValue').textContent = `${(avgPairSynergy * 100).toFixed(0)}%`;
-                    document.getElementById('oppTeamRatingValue').textContent = avgRating.toFixed(2);
-                }
-
-                // Load individual player performance for opponent team
-                await loadPlayerPerformance('oppTeam', appData.oppTeamPlayers);
-
-            } catch (error) {
-                console.error('Error calculating team synergies:', error);
             }
+
+            return {
+                teamSynergy: synergy,
+                pairSynergy: avgPairSynergy,
+                avgRating: avgRating
+            };
+        }
+
+        function displayTeamStats(teamType, stats) {
+            if (!stats) return;
+            
+            const prefix = teamType === 'myTeam' ? 'myTeam' : 'oppTeam';
+            
+            document.getElementById(`${prefix}StatsDisplay`).classList.remove('hidden');
+            document.getElementById(`${prefix}SynergyValue`).textContent = `${(stats.teamSynergy * 100).toFixed(0)}%`;
+            document.getElementById(`${prefix}PairsValue`).textContent = `${(stats.pairSynergy * 100).toFixed(0)}%`;
+            document.getElementById(`${prefix}RatingValue`).textContent = stats.avgRating.toFixed(2);
+        }
+
+        async function fetchPlayerStats(player) {
+            const statsResponse = await safeApiCall(
+                `/player-stats/${encodeURIComponent(player)}`,
+                {},
+                { success: false }
+            );
+
+            const defaultStats = {
+                player,
+                rating: '1.00',
+                kdDiff: '0.0',
+                kast: 70,
+                winRate: 50,
+                games: 0,
+                recentForm: '',
+                recentFormDetails: null,
+                hasRecentForm: false
+            };
+
+            if (!statsResponse.success || !statsResponse.data) return defaultStats;
+
+            const stats = statsResponse.data;
+            let totalRating = 0;
+            let totalKDDiff = 0;
+            let totalKAST = 0;
+            let totalWinRate = 0;
+            let totalGames = 0;
+
+            const agents = stats.agents || {};
+            for (const [agentName, agentData] of Object.entries(agents)) {
+                const games = agentData.games || 0;
+                totalGames += games;
+                totalRating += (agentData.avg_rating || 1.0) * games;
+                totalKDDiff += (agentData.avg_kd_diff || 0) * games;
+                totalKAST += (agentData.avg_kast || 70) * games;
+                totalWinRate += (agentData.win_rate || 50) * games;
+            }
+
+            let recentFormText = '';
+            let recentFormDetails = null;
+            
+            if (stats.recent_form && typeof stats.recent_form === 'object') {
+                const formData = stats.recent_form;
+                const formScore = (formData.form_score * 100).toFixed(0);
+                recentFormText = `Form: ${formScore}%`;
+                recentFormDetails = {
+                    score: formScore,
+                    rating: (formData.recent_rating || 1.0).toFixed(2),
+                    winRate: ((formData.recent_win_rate || 0.5) * 100).toFixed(0),
+                    consistency: ((formData.consistency || 0.5) * 100).toFixed(0),
+                    matches: formData.matches_analyzed || 0
+                };
+            }
+
+            if (totalGames > 0) {
+                return {
+                    player,
+                    rating: (totalRating / totalGames).toFixed(2),
+                    kdDiff: (totalKDDiff / totalGames).toFixed(1),
+                    kast: Math.round(totalKAST / totalGames),
+                    winRate: Math.round(totalWinRate / totalGames),
+                    games: totalGames,
+                    recentForm: recentFormText,
+                    recentFormDetails: recentFormDetails,
+                    hasRecentForm: recentFormDetails !== null
+                };
+            }
+
+            return defaultStats;
         }
 
         async function loadPlayerPerformance(teamType, players) {
-            const performanceData = [];
-            
-            for (const player of players) {
-                try {
-                    const statsResponse = await apiCall(`/player-stats/${encodeURIComponent(player)}`);
-                    if (statsResponse.success && statsResponse.data) {
-                        const stats = statsResponse.data;
-                        let totalRating = 0;
-                        let totalKDDiff = 0;
-                        let totalKAST = 0;
-                        let totalWinRate = 0;
-                        let totalGames = 0;
+            const performanceData = await Promise.all(
+                players.map(player => fetchPlayerStats(player))
+            );
 
-                        const agents = stats.agents || {};
-                        for (const [agentName, agentData] of Object.entries(agents)) {
-                            const games = agentData.games || 0;
-                            totalGames += games;
-                            totalRating += (agentData.avg_rating || 1.0) * games;
-                            totalKDDiff += (agentData.avg_kd_diff || 0) * games;
-                            totalKAST += (agentData.avg_kast || 70) * games;
-                            totalWinRate += (agentData.win_rate || 50) * games;
-                        }
-
-                        let recentFormText = '';
-                        let recentFormDetails = null;
-                        // Explicitly check for null and valid recent_form object
-                        if (stats.recent_form !== null && stats.recent_form !== undefined && typeof stats.recent_form === 'object') {
-                            const formData = stats.recent_form;
-                            const formScore = (formData.form_score * 100).toFixed(0);
-                            const recentRating = formData.recent_rating || 1.0;
-                            const recentWR = (formData.recent_win_rate * 100).toFixed(0);
-                            const consistency = (formData.consistency * 100).toFixed(0);
-                            
-                            recentFormText = `Form: ${formScore}%`;
-                            recentFormDetails = {
-                                score: formScore,
-                                rating: recentRating.toFixed(2),
-                                winRate: recentWR,
-                                consistency: consistency,
-                                matches: formData.matches_analyzed || 0
-                            };
-                        } 
-                        // Don't set any form text if recent_form is null
-
-                        if (totalGames > 0) {
-                            performanceData.push({
-                                player,
-                                rating: (totalRating / totalGames).toFixed(2),
-                                kdDiff: (totalKDDiff / totalGames).toFixed(1),
-                                kast: Math.round(totalKAST / totalGames),
-                                winRate: Math.round(totalWinRate / totalGames),
-                                games: totalGames,
-                                recentForm: recentFormText,
-                                recentFormDetails: recentFormDetails,
-                                hasRecentForm: recentFormDetails !== null
-                            });
-                        } else {
-                            performanceData.push({
-                                player,
-                                rating: '1.00',
-                                kdDiff: '0.0',
-                                kast: 70,
-                                winRate: 50,
-                                games: 0,
-                                recentForm: '',
-                                recentFormDetails: null,
-                                hasRecentForm: false
-                            });
-                        }
-                    } else {
-                        performanceData.push({
-                            player,
-                            rating: '1.00',
-                            kdDiff: '0.0',
-                            kast: 70,
-                            winRate: 50,
-                            games: 0,
-                            recentForm: '',
-                            recentFormDetails: null,
-                            hasRecentForm: false
-                        });
-                    }
-                } catch (e) {
-                    performanceData.push({
-                        player,
-                        rating: '1.00',
-                        kdDiff: '0.0',
-                        kast: 70,
-                        winRate: 50,
-                        games: 0,
-                        recentForm: '',
-                        recentFormDetails: null,
-                        hasRecentForm: false
-                    });
-                }
-            }
-
-            // Store performance data
             appData.playerPerformance[teamType] = performanceData;
 
-            // Display performance data
-            const containerId = teamType === 'myTeam' ? 'myTeamPerformanceDisplay' : 'oppTeamPerformanceDisplay';
             const gridId = teamType === 'myTeam' ? 'myTeamPerformanceGrid' : 'oppTeamPerformanceGrid';
-            
-            const container = document.getElementById(containerId);
             const grid = document.getElementById(gridId);
             
-            if (container && grid) {
+            if (grid) {
                 grid.innerHTML = performanceData.map(data => {
                     let formDisplay = '';
                     
-                    // Only show form if we actually have recent form data
                     if (data.hasRecentForm && data.recentFormDetails) {
                         const details = data.recentFormDetails;
-                        // Color code the form score
                         let formColor = 'var(--success-green)';
                         if (parseInt(details.score) < 50) {
                             formColor = 'var(--danger-red)';
@@ -1896,7 +1956,6 @@
                             </span>
                         `;
                     }
-                    // Don't show "No recent form" - just omit it entirely if null
                     
                     return `
                         <div class="player-perf-item">
@@ -1913,10 +1972,39 @@
                     `;
                 }).join('');
                 
-                container.classList.remove('hidden');
+                const containerId = teamType === 'myTeam' ? 'myTeamPerformanceDisplay' : 'oppTeamPerformanceDisplay';
+                document.getElementById(containerId).classList.remove('hidden');
             }
         }
 
+        async function calculateTeamSynergies() {
+            try {
+                const [myTeamStats, oppTeamStats] = await Promise.all([
+                    fetchTeamSynergies(appData.myTeamPlayers),
+                    fetchTeamSynergies(appData.oppTeamPlayers)
+                ]);
+
+                if (myTeamStats) {
+                    appData.teamStats.myTeam = myTeamStats;
+                    displayTeamStats('myTeam', myTeamStats);
+                }
+
+                if (oppTeamStats) {
+                    appData.teamStats.oppTeam = oppTeamStats;
+                    displayTeamStats('oppTeam', oppTeamStats);
+                }
+
+                await Promise.all([
+                    loadPlayerPerformance('myTeam', appData.myTeamPlayers),
+                    loadPlayerPerformance('oppTeam', appData.oppTeamPlayers)
+                ]);
+
+            } catch (error) {
+                console.error('Error calculating team synergies:', error);
+            }
+        }
+
+        // Map selection functions
         function enableStep3() {
             document.getElementById('step3').classList.remove('disabled');
             loadMapPreferences();
@@ -2008,6 +2096,7 @@
             disableStepsFrom(4);
         }
 
+        // Agent selection functions
         function enableStep4() {
             document.getElementById('step4').classList.remove('disabled');
             document.getElementById('selectedMapName').textContent = appData.selectedMap;
@@ -2079,7 +2168,6 @@
                 try {
                     const statsResponse = await apiCall(`/player-stats/${encodeURIComponent(player)}`);
                     if (statsResponse.success && statsResponse.data) {
-                        // Get top agents by games played and rating
                         const agents = statsResponse.data.agents || {};
                         const agentList = Object.entries(agents)
                             .map(([name, data]) => ({
@@ -2089,7 +2177,6 @@
                                 winRate: data.win_rate || 50
                             }))
                             .sort((a, b) => {
-                                // Sort by combination of games and rating
                                 const scoreA = (a.games * 0.3) + (a.rating * 50) + (a.winRate * 0.2);
                                 const scoreB = (b.games * 0.3) + (b.rating * 50) + (b.winRate * 0.2);
                                 return scoreB - scoreA;
@@ -2098,14 +2185,11 @@
                         const topAgents = agentList.slice(0, 3).map(a => a.name);
                         topAgentsText = topAgents.length > 0 ? `Best agents: ${topAgents.join(', ')}` : 'No agent history';
                         
-                        // Get top roles
                         const roles = statsResponse.data.roles || {};
                         const roleList = Object.entries(roles)
                             .map(([name, data]) => ({
                                 name,
-                                games: data.games || 0,
-                                rating: data.avg_rating || 1.0,
-                                winRate: data.win_rate || 50
+                                games: data.games || 0
                             }))
                             .sort((a, b) => b.games - a.games);
                         
@@ -2116,15 +2200,30 @@
                     // Silent fail
                 }
                 
+                const dropdownId = `${teamType === 'myTeam' ? 'my' : 'opp'}AgentDropdown${index}`;
+                const selectedId = `${teamType === 'myTeam' ? 'my' : 'opp'}AgentSelected${index}`;
+                
                 return `
                     <div class="agent-slot">
                         <h4>${player}</h4>
                         <small style="color: var(--text-secondary); display: block; margin: 5px 0;">${topAgentsText}</small>
                         <small style="color: var(--text-secondary); display: block; margin-bottom: 5px;">${topRolesText}</small>
-                        <select class="agent-dropdown" id="${teamType === 'myTeam' ? 'my' : 'opp'}Agent${index}" onchange="selectAgent('${teamType === 'myTeam' ? 'my' : 'opp'}', ${index})">
-                            <option value="">Select Agent</option>
-                            ${appData.agents.filter(agent => agent && agent.toLowerCase() !== 'n/a').map(agent => `<option value="${agent}">${agent}</option>`).join('')}
-                        </select>
+                        <div class="agent-dropdown-container">
+                            <div class="agent-dropdown-selected" id="${selectedId}" onclick="toggleAgentDropdown('${dropdownId}')" tabindex="0">
+                                <span style="color: var(--text-secondary); font-size: 13px;">Select Agent</span>
+                            </div>
+                            <div class="agent-dropdown-custom hidden" id="${dropdownId}" tabindex="-1">
+                                ${appData.agents.filter(agent => agent && agent.toLowerCase().trim() !== 'n/a' && agent.toLowerCase().trim() !== 'na').map((agent, agentIndex) => {
+                                    const iconUrl = agentIcons[agent.toLowerCase()] || agentIcons[agent.toLowerCase().replace('/', '')] || '';
+                                    return `
+                                        <div class="agent-option" data-agent-name="${agent.toLowerCase()}" data-index="${agentIndex}" onclick="selectAgentWithIcon('${teamType === 'myTeam' ? 'my' : 'opp'}', ${index}, '${agent.replace(/'/g, "\\'")}')">
+                                            <span class="agent-name">${agent}</span>
+                                            ${iconUrl ? `<img src="${iconUrl}" alt="${agent}" class="agent-icon" onerror="this.style.display='none'">` : ''}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
                     </div>
                 `;
             };
@@ -2145,10 +2244,97 @@
             oppAgentsContainer.innerHTML = oppTeamHTML;
         }
 
-        function selectAgent(teamType, index) {
-            const select = document.getElementById(`${teamType}Agent${index}`);
-            const agent = select.value;
+        function toggleAgentDropdown(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            const allDropdowns = document.querySelectorAll('.agent-dropdown-custom');
+            
+            allDropdowns.forEach(d => {
+                if (d.id !== dropdownId) {
+                    d.classList.add('hidden');
+                }
+            });
+            
+            dropdown.classList.toggle('hidden');
+            
+            if (!dropdown.classList.contains('hidden')) {
+                dropdown.setAttribute('data-search', '');
+                dropdown.setAttribute('data-search-timer', '');
+                dropdown.focus();
+                dropdown.onkeydown = null;
+                dropdown.onkeydown = function(e) {
+                    handleAgentKeyboardNavigation(e, dropdown);
+                };
+            }
+        }
 
+        function handleAgentKeyboardNavigation(e, dropdown) {
+            const options = Array.from(dropdown.querySelectorAll('.agent-option:not([style*="display: none"])'));
+            let currentHighlighted = dropdown.querySelector('.agent-option.highlighted');
+            let currentIndex = currentHighlighted ? options.indexOf(currentHighlighted) : -1;
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentIndex = (currentIndex + 1) % options.length;
+                highlightOption(options[currentIndex], dropdown);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentIndex = currentIndex <= 0 ? options.length - 1 : currentIndex - 1;
+                highlightOption(options[currentIndex], dropdown);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentHighlighted) {
+                    currentHighlighted.click();
+                }
+            } else if (e.key === 'Escape') {
+                dropdown.classList.add('hidden');
+            } else if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+                e.preventDefault();
+                
+                const prevTimer = dropdown.getAttribute('data-search-timer');
+                if (prevTimer) clearTimeout(parseInt(prevTimer));
+                
+                let searchString = dropdown.getAttribute('data-search') || '';
+                searchString += e.key.toLowerCase();
+                dropdown.setAttribute('data-search', searchString);
+                
+                const matchingOption = options.find(opt => 
+                    opt.getAttribute('data-agent-name').startsWith(searchString)
+                );
+                
+                if (matchingOption) {
+                    highlightOption(matchingOption, dropdown);
+                    matchingOption.scrollIntoView({ block: 'nearest' });
+                }
+                
+                const timer = setTimeout(() => {
+                    dropdown.setAttribute('data-search', '');
+                }, 1000);
+                dropdown.setAttribute('data-search-timer', timer.toString());
+            }
+        }
+
+        function highlightOption(option, dropdown) {
+            dropdown.querySelectorAll('.agent-option').forEach(opt => {
+                opt.classList.remove('highlighted');
+            });
+            if (option) {
+                option.classList.add('highlighted');
+            }
+        }
+
+        function selectAgentWithIcon(teamType, index, agent) {
+            const selectedId = `${teamType}AgentSelected${index}`;
+            const dropdownId = `${teamType}AgentDropdown${index}`;
+            const selectedDiv = document.getElementById(selectedId);
+            const iconUrl = agentIcons[agent.toLowerCase()] || agentIcons[agent.toLowerCase().replace('/', '')] || '';
+            
+            selectedDiv.innerHTML = `
+                <span style="color: var(--text-primary); font-size: 13px;">${agent}</span>
+                ${iconUrl ? `<img src="${iconUrl}" alt="${agent}" class="agent-icon" onerror="this.style.display='none'">` : ''}
+            `;
+            
+            document.getElementById(dropdownId).classList.add('hidden');
+            
             if (teamType === 'my') {
                 if (!appData.myTeamAgents) appData.myTeamAgents = [];
                 appData.myTeamAgents[index] = agent;
@@ -2156,15 +2342,37 @@
                 if (!appData.oppTeamAgents) appData.oppTeamAgents = [];
                 appData.oppTeamAgents[index] = agent;
             }
-
-            updateAgentDropdowns(teamType);
-
+            
+            updateAgentDropdownsWithIcons(teamType);
+            
             const myAgentsSelected = (appData.myTeamAgents || []).filter(a => a && a !== '').length;
             const oppAgentsSelected = (appData.oppTeamAgents || []).filter(a => a && a !== '').length;
             
             if (myAgentsSelected === 5 && oppAgentsSelected === 5) {
                 calculateTeamRoleCompositions();
                 enableStep5();
+            }
+        }
+
+        function updateAgentDropdownsWithIcons(teamType) {
+            const selectedAgents = teamType === 'my' ? appData.myTeamAgents : appData.oppTeamAgents;
+            
+            for (let i = 0; i < 5; i++) {
+                const dropdownId = `${teamType}AgentDropdown${i}`;
+                const dropdown = document.getElementById(dropdownId);
+                if (!dropdown) continue;
+                
+                const options = dropdown.querySelectorAll('.agent-option');
+                options.forEach(option => {
+                    const agentName = option.querySelector('.agent-name').textContent;
+                    if (selectedAgents.includes(agentName) && agentName !== (teamType === 'my' ? appData.myTeamAgents[i] : appData.oppTeamAgents[i])) {
+                        option.style.opacity = '0.5';
+                        option.style.pointerEvents = 'none';
+                    } else {
+                        option.style.opacity = '1';
+                        option.style.pointerEvents = 'auto';
+                    }
+                });
             }
         }
 
@@ -2177,44 +2385,36 @@
                     agentRoles = agentRolesResponse.data;
                 }
                 
-                const myRoles = { Duelist: 0, Controller: 0, Initiator: 0, Sentinel: 0 };
-                appData.myTeamAgents.forEach(agent => {
-                    if (agent && agentRoles[agent.toLowerCase()]) {
-                        const role = agentRoles[agent.toLowerCase()];
-                        const formattedRole = role.charAt(0).toUpperCase() + role.slice(1);
-                        if (myRoles.hasOwnProperty(formattedRole)) {
-                            myRoles[formattedRole]++;
+                const calculateRoles = (agents) => {
+                    const roles = { Duelist: 0, Controller: 0, Initiator: 0, Sentinel: 0 };
+                    agents.forEach(agent => {
+                        if (agent && agentRoles[agent.toLowerCase()]) {
+                            const role = agentRoles[agent.toLowerCase()];
+                            const formattedRole = role.charAt(0).toUpperCase() + role.slice(1);
+                            if (roles.hasOwnProperty(formattedRole)) {
+                                roles[formattedRole]++;
+                            }
                         }
-                    }
-                });
+                    });
+                    return roles;
+                };
                 
-                const oppRoles = { Duelist: 0, Controller: 0, Initiator: 0, Sentinel: 0 };
-                appData.oppTeamAgents.forEach(agent => {
-                    if (agent && agentRoles[agent.toLowerCase()]) {
-                        const role = agentRoles[agent.toLowerCase()];
-                        const formattedRole = role.charAt(0).toUpperCase() + role.slice(1);
-                        if (oppRoles.hasOwnProperty(formattedRole)) {
-                            oppRoles[formattedRole]++;
-                        }
-                    }
-                });
+                const myRoles = calculateRoles(appData.myTeamAgents);
+                const oppRoles = calculateRoles(appData.oppTeamAgents);
                 
                 appData.actualRoleCompositions = {
                     myTeam: myRoles,
                     oppTeam: oppRoles
                 };
                 
-                document.getElementById('myTeamRoleDisplay').classList.remove('hidden');
-                document.getElementById('myDuelistCount').textContent = myRoles.Duelist;
-                document.getElementById('myInitiatorCount').textContent = myRoles.Initiator;
-                document.getElementById('myControllerCount').textContent = myRoles.Controller;
-                document.getElementById('mySentinelCount').textContent = myRoles.Sentinel;
-                
-                document.getElementById('oppTeamRoleDisplay').classList.remove('hidden');
-                document.getElementById('oppDuelistCount').textContent = oppRoles.Duelist;
-                document.getElementById('oppInitiatorCount').textContent = oppRoles.Initiator;
-                document.getElementById('oppControllerCount').textContent = oppRoles.Controller;
-                document.getElementById('oppSentinelCount').textContent = oppRoles.Sentinel;
+                ['my', 'opp'].forEach(team => {
+                    const roles = team === 'my' ? myRoles : oppRoles;
+                    document.getElementById(`${team}TeamRoleDisplay`).classList.remove('hidden');
+                    document.getElementById(`${team}DuelistCount`).textContent = roles.Duelist;
+                    document.getElementById(`${team}InitiatorCount`).textContent = roles.Initiator;
+                    document.getElementById(`${team}ControllerCount`).textContent = roles.Controller;
+                    document.getElementById(`${team}SentinelCount`).textContent = roles.Sentinel;
+                });
                 
             } catch (error) {
                 appData.actualRoleCompositions = {
@@ -2224,38 +2424,17 @@
             }
         }
 
-        function updateAgentDropdowns(teamType) {
-            const prefix = teamType;
-            const selectedAgents = teamType === 'my' ? appData.myTeamAgents : appData.oppTeamAgents;
-
-            for (let i = 0; i < 5; i++) {
-                const select = document.getElementById(`${prefix}Agent${i}`);
-                if (!select) continue;
-
-                const currentValue = select.value;
-
-                select.innerHTML = `
-                    <option value="">Select Agent</option>
-                    ${appData.agents.map(agent => {
-                        const isDisabled = selectedAgents.includes(agent) && agent !== currentValue;
-                        return `<option value="${agent}" ${isDisabled ? 'disabled' : ''}>${agent}</option>`;
-                    }).join('')}
-                `;
-
-                select.value = currentValue;
-            }
-        }
-
         function clearAgentSelection() {
             appData.myTeamAgents = [];
             appData.oppTeamAgents = [];
             setupAgentSelection();
             disableStepsFrom(5);
             
-            document.getElementById('myTeamRoleDisplay').classList.add('hidden');
-            document.getElementById('oppTeamRoleDisplay').classList.add('hidden');
+            document.getElementById('myTeamRoleDisplay')?.classList.add('hidden');
+            document.getElementById('oppTeamRoleDisplay')?.classList.add('hidden');
         }
 
+        // Prediction functions
         function enableStep5() {
             document.getElementById('step5').classList.remove('disabled');
         }
@@ -2265,7 +2444,6 @@
             appData.weights[factor] = parseInt(value);
             document.getElementById(`${factor}Value`).textContent = `${value}%`;
             
-            // If we have a previous prediction, update the button text to show refresh option
             if (appData.lastPrediction) {
                 const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
                 if (button && !button.textContent.includes('Refresh')) {
@@ -2291,29 +2469,23 @@
                 if (display) display.textContent = `${appData.weights[factor]}%`;
             });
             
-            // Reset button text if weights are reset
             const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
-            if (button) {
-                button.textContent = 'Calculate Final Prediction';
-            }
+            if (button) button.textContent = 'Calculate Final Prediction';
         }
 
         async function calculateFinalPrediction() {
             try {
-                // Show loading state on button
                 const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
                 const originalText = button.textContent;
                 button.textContent = 'Calculating...';
                 button.disabled = true;
 
-                // Normalize weights to sum to 1
                 const totalWeight = Object.values(appData.weights).reduce((a, b) => a + b, 0);
                 const normalizedWeights = {};
                 Object.keys(appData.weights).forEach(key => {
                     normalizedWeights[key] = appData.weights[key] / totalWeight;
                 });
 
-                // Initialize factor scores
                 let factorScores = {
                     teamMatchup: 0.5,
                     playerSynergy: 0.5,
@@ -2323,86 +2495,75 @@
                     individualForm: 0.5
                 };
 
-                // 1. Calculate Team Matchup (base prediction from API)
-                try {
-                    const baseRequest = {
-                        team_a: appData.selectedMyTeam,
-                        team_b: appData.selectedOppTeam,
-                        map: appData.selectedMap,
-                        consider_synergy: false,
-                        consider_roles: false
-                    };
-                    
-                    const basePrediction = await apiCall('/predict/final-outcome', {
+                // Calculate all factor scores in parallel where possible
+                const [teamMatchupResult, mapAdvResults] = await Promise.all([
+                    // Team Matchup
+                    apiCall('/predict/final-outcome', {
                         method: 'POST',
-                        body: JSON.stringify(baseRequest)
-                    });
+                        body: JSON.stringify({
+                            team_a: appData.selectedMyTeam,
+                            team_b: appData.selectedOppTeam,
+                            map: appData.selectedMap,
+                            consider_synergy: false,
+                            consider_roles: false
+                        })
+                    }).catch(e => ({ success: false })),
                     
-                    if (basePrediction.success) {
-                        factorScores.teamMatchup = basePrediction.data.final_win_probability;
-                    }
-                } catch (e) {
-                    console.error('Team matchup calculation failed:', e);
+                    // Map Advantage
+                    Promise.all([
+                        apiCall('/team-map-preference', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                team: appData.selectedMyTeam,
+                                players: appData.myTeamPlayers,
+                                available_maps: [appData.selectedMap]
+                            })
+                        }).catch(e => ({ success: false })),
+                        apiCall('/team-map-preference', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                team: appData.selectedOppTeam,
+                                players: appData.oppTeamPlayers,
+                                available_maps: [appData.selectedMap]
+                            })
+                        }).catch(e => ({ success: false }))
+                    ])
+                ]);
+
+                if (teamMatchupResult.success) {
+                    factorScores.teamMatchup = teamMatchupResult.data.final_win_probability;
                 }
 
-                // 2. Calculate Player Synergy Score
+                // Process map advantage results
+                const [myMapData, oppMapData] = mapAdvResults;
+                let myMapWR = 50, oppMapWR = 50;
+                
+                if (myMapData.success && myMapData.data.map_preferences) {
+                    const mapPref = myMapData.data.map_preferences.find(([map, _]) => map === appData.selectedMap);
+                    if (mapPref) myMapWR = mapPref[1];
+                }
+                
+                if (oppMapData.success && oppMapData.data.map_preferences) {
+                    const mapPref = oppMapData.data.map_preferences.find(([map, _]) => map === appData.selectedMap);
+                    if (mapPref) oppMapWR = mapPref[1];
+                }
+                
+                const mapAdvDiff = (myMapWR - oppMapWR) / 100;
+                factorScores.mapAdvantage = 0.5 + (mapAdvDiff * 0.5);
+
+                // Player Synergy Score
                 if (appData.teamStats.myTeam && appData.teamStats.oppTeam) {
                     const mySynergy = (appData.teamStats.myTeam.teamSynergy + appData.teamStats.myTeam.pairSynergy) / 2;
                     const oppSynergy = (appData.teamStats.oppTeam.teamSynergy + appData.teamStats.oppTeam.pairSynergy) / 2;
-                    
-                    // Convert relative synergy to win probability
                     const synergyDiff = mySynergy - oppSynergy;
-                    factorScores.playerSynergy = 0.5 + (synergyDiff * 0.5); // Scale difference to 0-1
+                    factorScores.playerSynergy = 0.5 + (synergyDiff * 0.5);
                 }
 
-                // 3. Calculate Map Advantage
-                try {
-                    // Get my team's map preference
-                    const myMapData = await apiCall('/team-map-preference', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            team: appData.selectedMyTeam,
-                            players: appData.myTeamPlayers,
-                            available_maps: [appData.selectedMap]
-                        })
-                    });
-                    
-                    const oppMapData = await apiCall('/team-map-preference', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            team: appData.selectedOppTeam,
-                            players: appData.oppTeamPlayers,
-                            available_maps: [appData.selectedMap]
-                        })
-                    });
-                    
-                    let myMapWR = 50;
-                    let oppMapWR = 50;
-                    
-                    if (myMapData.success && myMapData.data.map_preferences) {
-                        const mapPref = myMapData.data.map_preferences.find(([map, _]) => map === appData.selectedMap);
-                        if (mapPref) myMapWR = mapPref[1];
-                    }
-                    
-                    if (oppMapData.success && oppMapData.data.map_preferences) {
-                        const mapPref = oppMapData.data.map_preferences.find(([map, _]) => map === appData.selectedMap);
-                        if (mapPref) oppMapWR = mapPref[1];
-                    }
-                    
-                    // Calculate relative advantage
-                    const mapAdvDiff = (myMapWR - oppMapWR) / 100;
-                    factorScores.mapAdvantage = 0.5 + (mapAdvDiff * 0.5);
-                    
-                } catch (e) {
-                    console.error('Map advantage calculation failed:', e);
-                }
-
-                // 4. Calculate Role Composition Score
+                // Role Composition Score
                 if (appData.actualRoleCompositions) {
                     const idealComp = { Duelist: 1, Initiator: 2, Controller: 1, Sentinel: 1 };
                     
                     const calculateRoleScore = (comp) => {
-                        let score = 0;
                         let totalDiff = 0;
                         
                         Object.keys(idealComp).forEach(role => {
@@ -2410,10 +2571,8 @@
                             totalDiff += diff;
                         });
                         
-                        // Convert difference to score (0 diff = 1.0, 5 diff = 0.5)
-                        score = Math.max(0.3, 1 - (totalDiff * 0.1));
+                        let score = Math.max(0.3, 1 - (totalDiff * 0.1));
                         
-                        // Bonus for having at least 1 of each critical role
                         if (comp.Controller >= 1 && comp.Initiator >= 1) {
                             score += 0.1;
                         }
@@ -2428,48 +2587,60 @@
                     factorScores.roleComposition = 0.5 + (roleDiff * 0.5);
                 }
 
-                // 5. Calculate Agent Selection Score (based on player comfort with selected agents)
-                let myAgentScore = 0;
-                let oppAgentScore = 0;
-                let myAgentCount = 0;
-                let oppAgentCount = 0;
+                // Agent Selection Score
+                let myAgentScore = 0, oppAgentScore = 0;
+                let myAgentCount = 0, oppAgentCount = 0;
+                
+                const agentPromises = [];
                 
                 for (let i = 0; i < 5; i++) {
                     if (appData.myTeamAgents[i] && appData.myTeamPlayers[i]) {
-                        try {
-                            const playerStats = await apiCall(`/player-stats/${encodeURIComponent(appData.myTeamPlayers[i])}`);
-                            if (playerStats.success && playerStats.data.agents) {
-                                const agentData = playerStats.data.agents[appData.myTeamAgents[i].toLowerCase()];
-                                if (agentData) {
-                                    // Score based on games played and win rate
-                                    const games = Math.min(agentData.games, 50) / 50; // Normalize to 0-1
-                                    const winRate = agentData.win_rate / 100;
-                                    myAgentScore += (games * 0.3 + winRate * 0.7);
-                                    myAgentCount++;
-                                }
-                            }
-                        } catch (e) {
-                            // Silent fail
-                        }
+                        agentPromises.push(
+                            apiCall(`/player-stats/${encodeURIComponent(appData.myTeamPlayers[i])}`)
+                                .then(statsResponse => ({
+                                    team: 'my',
+                                    index: i,
+                                    agent: appData.myTeamAgents[i],
+                                    stats: statsResponse.success ? statsResponse.data : null
+                                }))
+                                .catch(() => ({ team: 'my', index: i, agent: appData.myTeamAgents[i], stats: null }))
+                        );
                     }
                     
                     if (appData.oppTeamAgents[i] && appData.oppTeamPlayers[i]) {
-                        try {
-                            const playerStats = await apiCall(`/player-stats/${encodeURIComponent(appData.oppTeamPlayers[i])}`);
-                            if (playerStats.success && playerStats.data.agents) {
-                                const agentData = playerStats.data.agents[appData.oppTeamAgents[i].toLowerCase()];
-                                if (agentData) {
-                                    const games = Math.min(agentData.games, 50) / 50;
-                                    const winRate = agentData.win_rate / 100;
-                                    oppAgentScore += (games * 0.3 + winRate * 0.7);
-                                    oppAgentCount++;
-                                }
-                            }
-                        } catch (e) {
-                            // Silent fail
-                        }
+                        agentPromises.push(
+                            apiCall(`/player-stats/${encodeURIComponent(appData.oppTeamPlayers[i])}`)
+                                .then(statsResponse => ({
+                                    team: 'opp',
+                                    index: i,
+                                    agent: appData.oppTeamAgents[i],
+                                    stats: statsResponse.success ? statsResponse.data : null
+                                }))
+                                .catch(() => ({ team: 'opp', index: i, agent: appData.oppTeamAgents[i], stats: null }))
+                        );
                     }
                 }
+                
+                const agentResults = await Promise.all(agentPromises);
+                
+                agentResults.forEach(result => {
+                    if (result.stats?.agents) {
+                        const agentData = result.stats.agents[result.agent.toLowerCase()];
+                        if (agentData) {
+                            const games = Math.min(agentData.games, 50) / 50;
+                            const winRate = agentData.win_rate / 100;
+                            const score = (games * 0.3 + winRate * 0.7);
+                            
+                            if (result.team === 'my') {
+                                myAgentScore += score;
+                                myAgentCount++;
+                            } else {
+                                oppAgentScore += score;
+                                oppAgentCount++;
+                            }
+                        }
+                    }
+                });
                 
                 if (myAgentCount > 0) myAgentScore /= myAgentCount;
                 if (oppAgentCount > 0) oppAgentScore /= oppAgentCount;
@@ -2477,42 +2648,13 @@
                 const agentDiff = myAgentScore - oppAgentScore;
                 factorScores.agentSelection = 0.5 + (agentDiff * 0.5);
 
-                // 6. Calculate Individual Form Score (combines overall rating + recent form when available)
+                // Individual Form Score
                 if (appData.teamStats.myTeam && appData.teamStats.oppTeam) {
-                    let myFormScore = 0.5; // Default neutral
-                    let oppFormScore = 0.5;
-                    
-                    // My team form calculation
-                    if (appData.playerPerformance.myTeam && appData.playerPerformance.myTeam.length > 0) {
-                        const playersWithForm = appData.playerPerformance.myTeam.filter(p => p.hasRecentForm && p.recentFormDetails);
-                        const playersWithoutForm = appData.playerPerformance.myTeam.filter(p => !p.hasRecentForm || !p.recentFormDetails);
+                    const calculateFormScore = (performanceData) => {
+                        if (!performanceData || performanceData.length === 0) return 0.5;
                         
-                        let totalScore = 0;
-                        let totalWeight = 0;
-                        
-                        // Players with recent form - use actual form score
-                        playersWithForm.forEach(p => {
-                            const formScore = parseFloat(p.recentFormDetails.score) / 100;
-                            totalScore += formScore * 1.5; // Weight recent form more heavily
-                            totalWeight += 1.5;
-                        });
-                        
-                        // Players without recent form - use rating as proxy
-                        playersWithoutForm.forEach(p => {
-                            const ratingScore = Math.min(0.8, Math.max(0.2, (parseFloat(p.rating) - 0.8) / 0.4));
-                            totalScore += ratingScore * 1.0; // Lower weight for estimated scores
-                            totalWeight += 1.0;
-                        });
-                        
-                        if (totalWeight > 0) {
-                            myFormScore = totalScore / totalWeight;
-                        }
-                    }
-                    
-                    // Opponent team form calculation
-                    if (appData.playerPerformance.oppTeam && appData.playerPerformance.oppTeam.length > 0) {
-                        const playersWithForm = appData.playerPerformance.oppTeam.filter(p => p.hasRecentForm && p.recentFormDetails);
-                        const playersWithoutForm = appData.playerPerformance.oppTeam.filter(p => !p.hasRecentForm || !p.recentFormDetails);
+                        const playersWithForm = performanceData.filter(p => p.hasRecentForm && p.recentFormDetails);
+                        const playersWithoutForm = performanceData.filter(p => !p.hasRecentForm || !p.recentFormDetails);
                         
                         let totalScore = 0;
                         let totalWeight = 0;
@@ -2529,32 +2671,14 @@
                             totalWeight += 1.0;
                         });
                         
-                        if (totalWeight > 0) {
-                            oppFormScore = totalScore / totalWeight;
-                        }
-                    }
+                        return totalWeight > 0 ? totalScore / totalWeight : 0.5;
+                    };
                     
-                    // Convert to relative win probability
+                    const myFormScore = calculateFormScore(appData.playerPerformance.myTeam);
+                    const oppFormScore = calculateFormScore(appData.playerPerformance.oppTeam);
+                    
                     const formDiff = myFormScore - oppFormScore;
                     factorScores.individualForm = 0.5 + (formDiff * 0.5);
-                    
-                    // Log for debugging
-                    console.log('Individual Form Calculation:', {
-                        myTeam: appData.playerPerformance.myTeam?.map(p => ({
-                            player: p.player,
-                            hasForm: p.hasRecentForm,
-                            formScore: p.recentFormDetails?.score || 'N/A'
-                        })),
-                        oppTeam: appData.playerPerformance.oppTeam?.map(p => ({
-                            player: p.player,
-                            hasForm: p.hasRecentForm,
-                            formScore: p.recentFormDetails?.score || 'N/A'
-                        })),
-                        myFormScore,
-                        oppFormScore,
-                        formDiff,
-                        finalScore: factorScores.individualForm
-                    });
                 }
 
                 // Calculate final weighted probability
@@ -2563,18 +2687,16 @@
                     finalProbability += factorScores[factor] * normalizedWeights[factor];
                 });
 
-                // Ensure probability is between 0 and 1
                 finalProbability = Math.max(0.05, Math.min(0.95, finalProbability));
 
-                // Calculate confidence based on data availability and consistency
+                // Calculate confidence
                 let confidence = 0.5;
                 let dataPoints = 0;
                 let totalPoints = 0;
                 
                 Object.values(factorScores).forEach(score => {
-                    if (score !== 0.5) { // 0.5 is default/no data
+                    if (score !== 0.5) {
                         dataPoints++;
-                        // Higher confidence when factors agree (all high or all low)
                         const deviation = Math.abs(score - finalProbability);
                         confidence += (1 - deviation) * 0.1;
                     }
@@ -2584,32 +2706,19 @@
                 confidence = (dataPoints / totalPoints) * confidence;
                 confidence = Math.max(0.2, Math.min(0.9, confidence));
 
-                // Determine winner
                 const winner = finalProbability >= 0.5 ? appData.selectedMyTeam : appData.selectedOppTeam;
 
-                // Log the calculated values for debugging
-                console.log('Factor Scores:', factorScores);
-                console.log('Normalized Weights:', normalizedWeights);
-                console.log('Final Probability:', finalProbability);
-
-                // Ensure the scores are stored in the prediction object
                 appData.lastPrediction = {
                     final_win_probability: finalProbability,
                     winner: winner,
                     confidence: confidence,
-                    factors_considered: {
-                        base_prediction: factorScores.teamMatchup,
-                        map_adjustment: factorScores.mapAdvantage - 0.5,
-                        synergy_adjustment: factorScores.playerSynergy - 0.5
-                    },
-                    factor_scores: factorScores,  // Make sure this is included
+                    factor_scores: factorScores,
                     weights_used: normalizedWeights
                 };
 
                 displayPredictionResult(appData.lastPrediction, normalizedWeights);
                 enableStep6();
                 
-                // Update button text after successful prediction
                 button.textContent = 'Recalculate Prediction';
                 
             } catch (error) {
@@ -2624,9 +2733,6 @@
         }
 
         function displayPredictionResult(prediction, weights) {
-            console.log('Displaying prediction:', prediction);
-            console.log('Weights used:', weights);
-            
             const winProb = prediction.final_win_probability * 100;
             const isMyTeamWinner = prediction.winner === appData.selectedMyTeam;
 
@@ -2657,44 +2763,26 @@
                 }
             }
 
-            // Display actual calculated factor scores with weight influence shown
             const factorScores = prediction.factor_scores || {};
             const weightsUsed = prediction.weights_used || weights;
 
             const factorElements = {
-                'factorTeamMatchup': {
-                    value: (factorScores.teamMatchup * 100).toFixed(1),
-                    weight: (weightsUsed.teamMatchup * 100).toFixed(0)
-                },
-                'factorPlayerSynergy': {
-                    value: (factorScores.playerSynergy * 100).toFixed(1),
-                    weight: (weightsUsed.playerSynergy * 100).toFixed(0)
-                },
-                'factorMapAdvantage': {
-                    value: (factorScores.mapAdvantage * 100).toFixed(1),
-                    weight: (weightsUsed.mapAdvantage * 100).toFixed(0)
-                },
-                'factorRoleComposition': {
-                    value: (factorScores.roleComposition * 100).toFixed(1),
-                    weight: (weightsUsed.roleComposition * 100).toFixed(0)
-                },
-                'factorAgentSelection': {
-                    value: (factorScores.agentSelection * 100).toFixed(1),
-                    weight: (weightsUsed.agentSelection * 100).toFixed(0)
-                },
-                'factorIndividualForm': {
-                    value: (factorScores.individualForm * 100).toFixed(1),
-                    weight: (weightsUsed.individualForm * 100).toFixed(0)
-                }
+                'factorTeamMatchup': { score: factorScores.teamMatchup, weight: weightsUsed.teamMatchup },
+                'factorPlayerSynergy': { score: factorScores.playerSynergy, weight: weightsUsed.playerSynergy },
+                'factorMapAdvantage': { score: factorScores.mapAdvantage, weight: weightsUsed.mapAdvantage },
+                'factorRoleComposition': { score: factorScores.roleComposition, weight: weightsUsed.roleComposition },
+                'factorAgentSelection': { score: factorScores.agentSelection, weight: weightsUsed.agentSelection },
+                'factorIndividualForm': { score: factorScores.individualForm, weight: weightsUsed.individualForm }
             };
 
             Object.entries(factorElements).forEach(([id, data]) => {
                 const element = document.getElementById(id);
                 if (element) {
-                    // Show both the score and its weight contribution
-                    element.innerHTML = `${data.value}%<br><small style="opacity: 0.7; font-size: 0.7em;">weight: ${data.weight}%</small>`;
+                    const value = (data.score * 100).toFixed(1);
+                    const weight = (data.weight * 100).toFixed(0);
+                    element.innerHTML = `${value}%<br><small style="opacity: 0.7; font-size: 0.7em;">weight: ${weight}%</small>`;
                     
-                    const numValue = parseFloat(data.value);
+                    const numValue = parseFloat(value);
                     if (numValue >= 70) {
                         element.style.color = 'var(--success-green)';
                     } else if (numValue >= 50) {
@@ -2710,7 +2798,6 @@
 
         function enableStep6() {
             document.getElementById('step6').classList.remove('disabled', 'hidden');
-
             setTimeout(() => {
                 document.getElementById('step6').scrollIntoView({
                     behavior: 'smooth',
@@ -2719,6 +2806,7 @@
             }, 100);
         }
 
+        // Utility functions
         function disableStepsFrom(stepNumber) {
             for (let i = stepNumber; i <= 6; i++) {
                 const stepElement = document.getElementById(`step${i}`);
@@ -2766,17 +2854,15 @@
                     myTeam: {},
                     oppTeam: {}
                 },
+                actualRoleCompositions: null,
                 lastPrediction: null
             };
 
             clearTeamSelection();
             resetWeights();
             
-            // Reset prediction button text
             const button = document.querySelector('#step5 button[onclick*="calculateFinalPrediction"]');
-            if (button) {
-                button.textContent = 'Calculate Final Prediction';
-            }
+            if (button) button.textContent = 'Calculate Final Prediction';
         }
 
         // Initialize on page load
@@ -2789,5 +2875,4 @@
         });
     </script>
 </body>
-
 </html>
