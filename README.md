@@ -1,141 +1,74 @@
-# Valorant Match Predictor Pro
+# VCT Match Predictor
 
-A comprehensive web application for predicting Valorant esports match outcomes using advanced team composition analysis, player synergy calculations, and map preferences.
+Win odds for Valorant Champions Tour matches. Pick two teams, adjust rosters, the map and the format, and see the model's win chance next to a blend you control.
 
-## Overview
+Live site: https://valorant-match-predictor.netlify.app
 
-Valorant Match Predictor Pro is an interactive tool designed for esports analysts, coaches, and enthusiasts to predict match outcomes between professional Valorant teams. The application uses multiple data points including team statistics, player synergies, map preferences, agent selections, and role compositions to generate detailed match predictions.
+This repository holds only the website. The model, the data pipeline and the API live in a separate private repository. The site talks to the API directly from your browser.
 
-## Features
+## How it works, in plain English
 
-### 🎯 Core Functionality
-- **Team Selection**: Search and select from professional Valorant teams
-- **Player Roster Building**: Choose 5 players per team with synergy recommendations
-- **Map Analysis**: View team-specific map win rates and advantages
-- **Agent Selection**: Assign agents to players with role composition tracking
-- **Weighted Predictions**: Customize prediction weights across 6 key factors
-- **Detailed Results**: Get win probability percentages with confidence metrics
+- Every team has a rating and an uncertainty. Both update after every map, in date order, from finished VCT and Challengers matches.
+- Teams also get a small offset per map, so a team that is strong on Lotus and weak on Bind is treated that way.
+- Recent results count more than old ones. Player ratings follow players when they change teams.
+- The model turns those signals into a win chance for each map. For a best of 3 or 5, it simulates the ban and pick phase on the current map pool to get series odds.
+- The result shows two numbers side by side. "Model" is the model's own answer and never changes with your settings. "Your blend" is a weighted average of six simple views (team strength, map strength, recent form, roster form, head to head, composition) using the lens weights you set.
+- Everything you choose is stored in the page link, so you can share a prediction by copying the link.
+- The roster rule check (3 of 5 players retained, 3 of 5 living in the team's region) is informational only.
 
-### 📊 Advanced Analytics
-- **Player Synergy Calculations**: Real-time synergy scores between players
-- **Team Performance Metrics**: Average ratings, K/D ratios, and ACS scores
-- **Map Preference Rankings**: Best to worst maps for selected teams
-- **Role Composition Analysis**: Track team balance across Duelist, Initiator, Controller, and Sentinel roles
-- **Top Player Indicators**: Highlights top 5 performers for each team
+All accuracy numbers, baselines and the reliability chart are on the Model page, loaded live from the service. This README does not quote any.
 
-### 🎨 User Experience
-- **Step-by-Step Workflow**: 6 guided steps from team selection to final prediction
-- **Real-time API Status**: Connection monitoring with visual indicators
-- **Smart Suggestions**: Players with high synergy are highlighted during selection
-- **Progressive Disclosure**: Each step unlocks as prerequisites are completed
-- **Responsive Design**: Optimized for desktop viewing
+## Pages
 
-## Technical Requirements
+- Predict: team pickers, roster editor, match setup, optional agent picks, lenses, result, compare scenarios, share link
+- Teams: sortable rankings with region tabs and search
+- Team: rating history, map strengths, roster, recent results, head to head
+- Player: form, agent pool, map stats, frequent teammates
+- Model: what the model is, backtest against baselines, reliability chart, quality gate, data freshness, limits
+- About: sources, update schedule, privacy
 
-### Dependencies
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-- Active internet connection for API calls
-- JavaScript enabled
+## Run it
 
-### API Integration
-The application connects to a Valorant statistics API (via Netlify Functions) for:
-- Team rosters and historical data
-- Player performance statistics
-- Map win rates and preferences
-- Agent role classifications
-- Synergy calculations
+Needs Node 22.
 
-## How to Use
+```
+npm ci
+npm run dev
+```
 
-1. **Step 1 - Team Selection**
-   - Search and select your team
-   - Search and select the opponent team
+Useful scripts: `npm run typecheck`, `npm test`, `npm run build`, `npm run preview`.
 
-2. **Step 2 - Player Selection**
-   - Choose 5 players for each team
-   - View synergy recommendations as you build rosters
-   - Monitor team statistics (synergy, pair synergy, average rating)
+Environment variables:
 
-3. **Step 3 - Map Selection**
-   - Review map rankings based on team performance
-   - Select the map for the match
-   - Note recommended picks and bans
+- `VITE_API_BASE`: API base URL. Defaults to the production Cloud Run service.
+- `VITE_MOCK=1`: serve fixtures from `src/mocks/` instead of calling the API. The fixtures use invented teams and players. Tests always run in mock mode.
 
-4. **Step 4 - Agent Selection**
-   - Assign agents to each player
-   - View player's best agents and roles
-   - Monitor role composition balance
+```
+VITE_MOCK=1 npm run dev
+```
 
-5. **Step 5 - Prediction Configuration**
-   - Adjust weight sliders for 6 prediction factors:
-     - Team Matchup (default: 25%)
-     - Player Synergy (default: 20%)
-     - Map Advantage (default: 20%)
-     - Role Composition (default: 15%)
-     - Agent Selection (default: 10%)
-     - Individual Form (default: 10%)
+## Project layout
 
-6. **Step 6 - View Results**
-   - See predicted winner and win probability
-   - Review confidence level
-   - Analyze individual factor contributions
+- `src/api`: hand-written API types (from the API contract) and the fetch wrapper
+- `src/components`, `src/pages`: UI
+- `src/charts`: SVG charts (sparkline, reliability)
+- `src/lib`: formatting, lens math, URL state
+- `src/mocks`: fixtures and a fake API for mock mode
+- `src/test`: Vitest and Testing Library tests
 
-## Prediction Factors Explained
+## Deploy
 
-- **Team Matchup**: Head-to-head historical performance between teams
-- **Player Synergy**: How well selected players work together based on past games
-- **Map Advantage**: Team's win rate and comfort on the selected map
-- **Role Composition**: Balance and viability of selected agent roles
-- **Agent Selection**: Player proficiency with chosen agents
-- **Individual Form**: Recent individual player performance metrics
+Netlify builds with `npm ci && npm run build` and publishes `dist`. `public/_redirects` sends every path to `index.html` so deep links work.
 
-## Data Sources
+## Screenshots
 
-The application utilizes:
-- Professional match history
-- Player performance statistics
-- Team composition data
-- Map-specific win rates
-- Agent pick rates and success rates
+Placeholders, to be added after the first live deploy:
 
-## Limitations
+- Predict page with a result
+- Predict page lenses panel
+- Team page
+- Model page reliability chart
 
-- Predictions are based on historical data and may not account for:
-  - Recent roster changes
-  - Player injuries or substitutions
-  - Meta shifts or game updates
-  - Psychological factors or team morale
-  - Specific tournament contexts
+## Credits
 
-## Best Practices
-
-1. **Complete All Steps**: For most accurate predictions, fill in all available data
-2. **Consider Context**: Use predictions as one input alongside other analysis
-3. **Adjust Weights**: Customize weights based on your analytical priorities
-4. **Review Synergies**: Pay attention to suggested player combinations
-5. **Map Selection**: Consider both team preferences and recent performance
-
-## Troubleshooting
-
-- **API Connection Issues**: Check internet connection and refresh page
-- **Missing Players**: Some historical players may not appear in current rosters
-- **Loading Delays**: Large data requests may take a few seconds
-- **Clear Selections**: Use clear buttons to reset individual sections
-
-## Future Enhancements
-
-Potential improvements could include:
-- Tournament-specific predictions
-- Recent form weighting
-- Player substitution scenarios
-- Best-of-3/5 series predictions
-- Historical prediction accuracy tracking
-- Export functionality for reports
-
-## License
-
-This tool is for educational and analytical purposes.
-
-## Support
-
-For issues or suggestions, please contact sachde.nirmit@gmail.com
+Match data from vlr.gg. Agent and map names and icons from valorant-api.com. Not affiliated with or endorsed by Riot Games.
