@@ -97,7 +97,9 @@ export function LensesPanel({ weights, enabled, factors, modelProb, nameA, onCha
         {total <= 0 ? (
           <p>Turn on at least one factor with a weight above zero to get a blend.</p>
         ) : preview == null || !factors ? (
-          <p className="muted">Run a prediction to see the blend update live as you move the sliders.</p>
+          <p className="muted">
+            Blend preview: <strong className="num">n/a</strong>. Run a prediction to see the blend update live as you move the sliders.
+          </p>
         ) : (
           <p>
             Blend preview: <strong className="num">{pct(preview)}</strong> for {nameA}

@@ -121,6 +121,15 @@ export function RosterCheck({ side, local, check }: { side: Side; local: number;
       </p>
     );
   }
+  if (check.retained_core == null && check.residency_ok == null && check.notes.length > 0) {
+    return (
+      <div className="hint" aria-label={`Team ${label} roster check`}>
+        {check.notes.map((n) => (
+          <p key={n}>{n}</p>
+        ))}
+      </div>
+    );
+  }
   const res =
     check.residency_ok === null
       ? "residency could not be checked (some countries unknown)"

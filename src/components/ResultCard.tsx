@@ -1,7 +1,7 @@
 import { FACTOR_KEYS, type FactorKey, type PredictResponse, type Weights } from "../api/types";
 import { num, pct, seriesFromMap } from "../lib/format";
 import { whyRows } from "../lib/explain";
-import { FACTOR_INFO, blendProb, effectiveWeights, normalise, type Enabled } from "../lib/lenses";
+import { FACTOR_INFO, blendProb, detectPreset, effectiveWeights, normalise, type Enabled } from "../lib/lenses";
 import { useBoot } from "../context";
 import { PinIcon } from "./Icons";
 import { TeamLogo } from "./TeamLogo";
@@ -121,6 +121,11 @@ export function ResultCard({ res, weights, enabled, stale, onPin, pinned }: Prop
         />
         <ProbBlock title="Your blend" p={blend.map} a={nameA} b={nameB} tone="blend" sub="Weighted by your lenses" />
       </div>
+      {detectPreset(weights, enabled) === "model" ? (
+        <p className="small-text muted" data-testid="model-only-note">
+          Model only: your blend equals the model number.
+        </p>
+      ) : null}
       <SplitBar p={m.map_prob} a={nameA} b={nameB} />
 
       {bo > 1 ? (

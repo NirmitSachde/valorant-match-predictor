@@ -180,7 +180,7 @@ export interface PredictRequest {
 
 export interface RosterCheckSide {
   changes_vs_last: number;
-  retained_core: boolean;
+  retained_core: boolean | null;
   residency_ok: boolean | null;
   imports: number;
   notes: string[];

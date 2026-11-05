@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { mockPredict } from "../mocks/handler";
@@ -135,6 +135,17 @@ describe("Predict page (mock mode)", () => {
     expect(screen.getByText(/turn on at least one factor/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /reset/i }));
     expect(screen.getByRole("spinbutton", { name: /weight number for team strength/i })).toHaveValue(50);
+  });
+
+  it("shows the Model only note and an n/a preview before any result", async () => {
+    renderApp("/");
+    expect(await screen.findByText(/blend preview/i)).toHaveTextContent(/n\/a/);
+    cleanup();
+    renderApp(`/?a=${t0!.id}&b=${t1!.id}`);
+    const result = await screen.findByRole("region", { name: "Result" });
+    expect(within(result).queryByText(/your blend equals the model number/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Model only" }));
+    expect(within(result).getByText("Model only: your blend equals the model number.")).toBeInTheDocument();
   });
 
   it("pins a scenario and compares after a change", async () => {

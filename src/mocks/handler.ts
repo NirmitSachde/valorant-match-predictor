@@ -143,7 +143,16 @@ export function mockPredict(req: PredictRequest): PredictResponse {
   const modelSeries = req.best_of === 1 ? modelMap : seriesFromMap(modelMap, req.best_of);
   const blendSeries = req.best_of === 1 ? blendMap : seriesFromMap(blendMap, req.best_of);
 
-  const check = (t: TeamFull, rs: { changes: number; known: number }): RosterCheckSide => ({
+  const check = (t: TeamFull, rs: { changes: number; known: number }): RosterCheckSide =>
+    rs.known === 0
+      ? {
+          changes_vs_last: 0,
+          retained_core: null,
+          residency_ok: null,
+          imports: 0,
+          notes: ["No players recorded for this team on vlr.gg; prediction uses team results only."],
+        }
+      : {
     changes_vs_last: rs.changes,
     retained_core: rs.changes <= 2,
     residency_ok: t.region === "China" || rs.known < 5 ? null : true,
@@ -152,7 +161,7 @@ export function mockPredict(req: PredictRequest): PredictResponse {
       ...(rs.known < 5 ? [`Lineup incomplete: ${rs.known} of 5 players known, the rest count as new players.`] : []),
       ...(rs.changes > 2 ? ["Fewer than 3 of 5 players retained: earned progress could be at risk."] : []),
     ],
-  });
+ };
 
   return {
     team_a: slim(ta),
