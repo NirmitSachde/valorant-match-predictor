@@ -14,7 +14,7 @@ exports.handler = async (event, context) => {
 
   try {
     // The actual API endpoint
-    const API_BASE = process.env.API_BASE || 'https://nirmitsachde-valorant-match-predictor.hf.space';
+    const API_BASE = process.env.API_BASE || 'https://vct-predictor-api-264900299491.us-central1.run.app';
     
     // Extract the path after /valorant-api
     const path = event.path.replace('/.netlify/functions/valorant-api', '');
