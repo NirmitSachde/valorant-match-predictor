@@ -1,12 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { errorMessage, getBootstrap, resetBootstrapCache } from "./api/client";
 import type { AgentMeta, Bootstrap, MapMeta, TeamSlim } from "./api/types";
+import { leagueRanks } from "./lib/league";
 
 interface Ctx {
   boot: Bootstrap | null;
   error: string | null;
   retry: () => void;
   teamsById: Map<number, TeamSlim>;
+  /** rank inside the team's own league (VCT or Challengers) */
+  leagueRank: Map<number, number>;
   agentsByKey: Map<string, AgentMeta>;
   mapsByName: Map<string, MapMeta>;
 }
@@ -39,6 +42,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
         setAttempt((n) => n + 1);
       },
       teamsById: new Map((boot?.teams ?? []).map((t) => [t.id, t])),
+      leagueRank: leagueRanks(boot?.teams ?? []),
       agentsByKey: new Map((boot?.agents ?? []).map((a) => [a.key, a])),
       mapsByName: new Map((boot?.maps ?? []).map((m) => [m.name, m])),
     }),

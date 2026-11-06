@@ -71,6 +71,18 @@ describe("Predict page (mock mode)", () => {
     expect(within(result).queryByText(/series odds/i)).not.toBeInTheDocument();
   });
 
+  it("warns when the two teams play in different leagues, and only then", async () => {
+    const vct = MOCK_BOOTSTRAP.teams.find((t) => t.tier === "vct")!;
+    const ch = MOCK_BOOTSTRAP.teams.find((t) => t.tier === "challengers")!;
+    const other = MOCK_BOOTSTRAP.teams.find((t) => t.tier === "vct" && t.id !== vct.id)!;
+    const first = renderApp(`/?a=${vct.id}&b=${ch.id}`);
+    const result = await screen.findByRole("region", { name: "Result" });
+    expect(within(result).getByTestId("cross-league-note")).toHaveTextContent(/rarely meet/i);
+    first.unmount();
+    renderApp(`/?a=${vct.id}&b=${other.id}`);
+    const again = await screen.findByRole("region", { name: "Result" });
+    expect(within(again).queryByTestId("cross-league-note")).not.toBeInTheDocument();
+  });
   it("roster editor swaps a player via search and can reset", async () => {
     renderApp(`/?a=${t0!.id}&b=${t1!.id}`);
     await screen.findByRole("region", { name: "Result" });

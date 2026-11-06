@@ -3,6 +3,7 @@ import { num, pct, seriesFromMap } from "../lib/format";
 import { whyRows } from "../lib/explain";
 import { FACTOR_INFO, blendProb, detectPreset, effectiveWeights, normalise, type Enabled } from "../lib/lenses";
 import { useBoot } from "../context";
+import { LEAGUE_LABEL, crossLeague } from "../lib/league";
 import { PinIcon } from "./Icons";
 import { TeamLogo } from "./TeamLogo";
 
@@ -85,6 +86,12 @@ export function ResultCard({ res, weights, enabled, stale, onPin, pinned }: Prop
       {stale ? (
         <p className="notice warn" role="status">
           Inputs changed since this result. Run the prediction again to update it.
+        </p>
+      ) : null}
+      {crossLeague(res.team_a, res.team_b) ? (
+        <p className="notice warn" role="note" data-testid="cross-league-note">
+          {nameA} plays in {LEAGUE_LABEL[res.team_a.tier]} and {nameB} in {LEAGUE_LABEL[res.team_b.tier]}. The two leagues rarely meet, so
+          their ratings were hardly tested against each other: treat this one as a rough guess.
         </p>
       ) : null}
       <div className="matchup">

@@ -5,11 +5,14 @@ import { TeamLogo } from "../components/TeamLogo";
 import { Sparkline } from "../charts/Sparkline";
 import { num, pct0, shortDate } from "../lib/format";
 import { useAsync, useTitle } from "../lib/hooks";
+import { useBoot } from "../context";
+import { LEAGUE_LABEL } from "../lib/league";
 
 export default function Team() {
   const { id } = useParams();
   const tid = Number(id);
   const { data: t, error, loading } = useAsync((s) => api.team(tid, s), String(tid));
+  const { leagueRank } = useBoot();
   useTitle(t?.name ?? "Team");
 
   if (loading) return <p className="muted" role="status">Loading team...</p>;
@@ -32,13 +35,13 @@ export default function Team() {
         <div>
           <h1>{t.name}</h1>
           <p className="muted">
-            {t.region}, {t.tier === "vct" ? "VCT" : "Challengers"}, last played {shortDate(t.last_played)}
+            {t.region}, {LEAGUE_LABEL[t.tier]}, last played {shortDate(t.last_played)}
           </p>
         </div>
         <dl className="stat-row">
           <div>
-            <dt>Rank</dt>
-            <dd className="num">#{t.rank}</dd>
+            <dt>Rank in {LEAGUE_LABEL[t.tier]}</dt>
+            <dd className="num">#{leagueRank.get(t.id) ?? t.rank}</dd>
           </div>
           <div>
             <dt>Rating</dt>

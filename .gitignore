@@ -7,3 +7,5 @@ dist/
 Thumbs.db
 *.log
 coverage/
+*.local
+.claude/

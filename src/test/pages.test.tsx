@@ -7,17 +7,34 @@ import { api } from "../api/client";
 import { RouteErrorBoundary } from "../components/RouteErrorBoundary";
 import { MOCK_BOOTSTRAP, MOCK_MODEL, teamById } from "../mocks/data";
 import { sortTeams } from "../pages/Teams";
+import { crossLeague, leagueRanks } from "../lib/league";
 import { renderApp } from "./helpers";
 
 describe("pages (mock mode)", () => {
-  it("rankings sort and filter", async () => {
+  it("rankings open on the VCT league, rank inside it, and filter", async () => {
     renderApp("/teams");
     const table = await screen.findByRole("table");
+    const vct = MOCK_BOOTSTRAP.teams.filter((t) => t.tier === "vct");
+    expect(within(table).getAllByRole("row")).toHaveLength(vct.length + 1);
+    // first column is the place inside the league: 1..n with no gaps
+    const firsts = within(table).getAllByRole("row").slice(1).map((r) => Number(within(r).getAllByRole("cell")[0]!.textContent));
+    expect([...firsts].sort((a, b) => a - b)).toEqual(vct.map((_, i) => i + 1));
+    await userEvent.click(screen.getByRole("tab", { name: "Both" }));
     expect(within(table).getAllByRole("row")).toHaveLength(MOCK_BOOTSTRAP.teams.length + 1);
     await userEvent.click(screen.getByRole("tab", { name: "China" }));
     expect(within(table).getAllByRole("row")).toHaveLength(4);
     await userEvent.type(screen.getByRole("textbox", { name: /search teams/i }), "jade");
     expect(within(table).getAllByRole("row")).toHaveLength(2);
+  });
+  it("league ranks count each league from 1 and flag cross-league pairs", () => {
+    const ranks = leagueRanks(MOCK_BOOTSTRAP.teams);
+    for (const tier of ["vct", "challengers"] as const) {
+      const ids = MOCK_BOOTSTRAP.teams.filter((t) => t.tier === tier).map((t) => ranks.get(t.id)!);
+      expect([...ids].sort((a, b) => a - b)).toEqual(ids.map((_, i) => i + 1));
+    }
+    expect(crossLeague({ tier: "vct" }, { tier: "challengers" })).toBe(true);
+    expect(crossLeague({ tier: "vct" }, { tier: "vct" })).toBe(false);
+    expect(crossLeague(undefined, { tier: "vct" })).toBe(false);
   });
   it("sortTeams orders by key and direction", () => {
     const asc = sortTeams(MOCK_BOOTSTRAP.teams, "rating", 1);
