@@ -377,6 +377,10 @@ img { max-width: 100%; }
 .series { margin-top: 12px; }
 .block { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 .bars { display: grid; gap: 8px; }
+.parts { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.part { display: grid; gap: 6px; }
+.part-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.part p { margin: 0; }
 .bar-row { display: grid; grid-template-columns: minmax(96px, 150px) 1fr minmax(96px, auto); gap: 10px; align-items: center; }
 @media (max-width: 520px) { .bar-row { grid-template-columns: 1fr; gap: 2px; } }
 .bar-row .split { margin: 0; }

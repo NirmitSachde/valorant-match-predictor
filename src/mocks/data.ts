@@ -305,14 +305,29 @@ export const MOCK_MODEL: ModelResponse = {
   regions: { Americas: 0.05, EMEA: 0.1, Pacific: 0, China: -0.15 },
   sources: "vlr.gg match pages (VCT 2023-2026, Challengers 2025-2026); valorant-api.com",
   model: {
+    kind: "ensemble",
+    parts: [
+      { name: "logistic", label: "Logistic regression", weight: 0.1, detail: "15 features, L2 regularised, one weight per feature" },
+      { name: "lightgbm", label: "LightGBM gradient-boosted trees", weight: 0.4, detail: "200 trees of up to 7 leaves with known directions enforced" },
+      { name: "neural_net", label: "Neural network", weight: 0.5, detail: "32-16 ReLU layers, average of 3 trained copies" },
+    ],
     features: MOCK_FEATURES,
     coefficients: MOCK_FEATURES.map((feature, i) => ({ feature, coef: MOCK_COEF[i] ?? 0 })),
+    importance: MOCK_FEATURES.slice(0, 4).map((feature, i) => ({ feature, share: [0.4, 0.3, 0.2, 0.1][i] ?? 0 })),
     calibration_layer: { used: false, reason: "no walk-forward log loss gain on 2025" },
   },
   backtest: {
     generated_at: "2026-11-01T06:00:00Z",
     data: { maps: 19800, matches: 8400, first: "2023-02-13 12:10:00+00:00", last: "2026-11-01 04:00:00+00:00" },
-    monthly_2026: { model: mx(1800, 0.62, 0.648, 0.228), glicko_only: mx(1800, 0.6, 0.659, 0.233) },
+    monthly_2026: {
+      model: mx(1800, 0.62, 0.646, 0.227),
+      glicko_only: mx(1800, 0.6, 0.659, 0.233),
+      logistic: mx(1800, 0.618, 0.648, 0.228),
+      lightgbm: mx(1800, 0.619, 0.648, 0.228),
+      neural_net: mx(1800, 0.62, 0.647, 0.227),
+    },
+    series_2026: { model: { ...mx(800, 0.64, 0.63, 0.22), n_veto_simulated: 760 }, pre_veto: mx(800, 0.64, 0.631, 0.22), glicko_only: mx(800, 0.6, 0.66, 0.233) },
+    next_season: { season: 2027, events: ["Mock 2027 Open Qualifier"], model: mx(120, 0.75, 0.48, 0.16), glicko_only: mx(120, 0.6, 0.58, 0.2), series: mx(50, 0.7, 0.5, 0.17) },
     international_2026: { model: mx(160, 0.6, 0.66, 0.232), glicko_only: mx(160, 0.57, 0.672, 0.238) },
     events: [
       {

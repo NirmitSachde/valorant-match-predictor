@@ -239,6 +239,28 @@ export interface ModelVsBaseline {
   glicko_only: Metrics | null;
 }
 
+/** The 2026 walk-forward, with each part of the ensemble scored on its own (absent on older APIs). */
+export interface MonthlyBacktest extends ModelVsBaseline {
+  logistic?: Metrics | null;
+  lightgbm?: Metrics | null;
+  neural_net?: Metrics | null;
+}
+
+export interface SeriesBacktest {
+  model: Metrics | null;
+  pre_veto: Metrics | null;
+  glicko_only: Metrics | null;
+}
+
+/** Matches of the next season played before the test season ended (2027 open qualifiers), kept apart. */
+export interface NextSeasonBacktest {
+  season: number | null;
+  events: string[];
+  model: Metrics | null;
+  glicko_only: Metrics | null;
+  series: Metrics | null;
+}
+
 export interface BacktestEvent {
   name: string;
   train_maps: number | null;
@@ -272,13 +294,23 @@ export interface QualityGate {
 export interface Backtest {
   generated_at: string | null;
   data: { maps: number; matches: number; first: string; last: string } | null;
-  monthly_2026: ModelVsBaseline;
+  monthly_2026: MonthlyBacktest;
+  series_2026?: SeriesBacktest;
+  next_season?: NextSeasonBacktest | null;
   international_2026: ModelVsBaseline;
   events: BacktestEvent[];
   reliability: ReliabilityBin[];
   quality_gate: QualityGate | null;
   params: Record<string, number> | null;
   notes: string[];
+}
+
+export interface ModelPart {
+  name: string;
+  label: string;
+  /** Weight in the logit-space average, 0 to 1. */
+  weight: number;
+  detail: string;
 }
 
 export interface ModelResponse {
@@ -290,8 +322,14 @@ export interface ModelResponse {
   regions: Record<string, number>;
   sources?: string | null;
   model: {
+    /** "ensemble" since the logistic, LightGBM and neural network blend went live; absent on older APIs. */
+    kind?: "logistic" | "ensemble";
+    parts?: ModelPart[];
     features: string[];
+    /** Weights of the logistic part, the only part that can be read off directly. */
     coefficients: { feature: string; coef: number }[];
+    /** Share of the trees' total split gain per feature (LightGBM), sums to 1. */
+    importance?: { feature: string; share: number }[];
     calibration_layer: Record<string, unknown> | null;
   };
   backtest: Backtest | null;

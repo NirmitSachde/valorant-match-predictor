@@ -1,6 +1,7 @@
 import { api } from "../api/client";
 import type { Backtest, Metrics, ModelResponse } from "../api/types";
 import { Reliability } from "../charts/Reliability";
+import { Bar } from "../components/Bar";
 import { featureLabel } from "../lib/explain";
 import { num, pct } from "../lib/format";
 import { useAsync, useTitle } from "../lib/hooks";
@@ -56,13 +57,27 @@ function BacktestTables({ bt }: { bt: Backtest }) {
   return (
     <>
       <MetricsTable
-        title="2026 monthly walk-forward"
+        title="2026 season, monthly walk-forward"
         sub={count(mo.model, "maps, every tier")}
         lines={[
-          { name: "Model", m: mo.model, model: true },
+          { name: "Model (all three models together)", m: mo.model, model: true },
+          { name: "Neural network alone", m: mo.neural_net ?? null },
+          { name: "LightGBM alone", m: mo.lightgbm ?? null },
+          { name: "Logistic regression alone", m: mo.logistic ?? null },
           { name: "Glicko only", m: mo.glicko_only },
         ]}
       />
+      {bt.series_2026 ? (
+        <MetricsTable
+          title="2026 season, series winners"
+          sub={count(bt.series_2026.model ?? bt.series_2026.pre_veto, "series")}
+          lines={[
+            { name: "Model, simulated veto", m: bt.series_2026.model, model: true },
+            { name: "Model, before the veto", m: bt.series_2026.pre_veto, model: true },
+            { name: "Glicko only", m: bt.series_2026.glicko_only },
+          ]}
+        />
+      ) : null}
       <MetricsTable
         title="2026 international events, pooled"
         sub={count(intl.model, "maps")}
@@ -93,6 +108,65 @@ function BacktestTables({ bt }: { bt: Backtest }) {
           />
         </div>
       ))}
+      {bt.next_season?.model ? (
+        <MetricsTable
+          title={`${bt.next_season.season ?? "Next"} season so far`}
+          sub={[count(bt.next_season.model, "maps"), "open qualifiers, kept out of the 2026 numbers"].filter(Boolean).join(", ")}
+          lines={[
+            { name: "Model", m: bt.next_season.model, model: true },
+            { name: "Model, series winners", m: bt.next_season.series, model: true },
+            { name: "Glicko only", m: bt.next_season.glicko_only },
+          ]}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function Parts({ model }: { model: ModelResponse["model"] }) {
+  const parts = [...(model.parts ?? [])].sort((a, b) => b.weight - a.weight);
+  if (parts.length < 2) return null;
+  return (
+    <section className="card" aria-labelledby="parts-h">
+      <h2 id="parts-h">Three models, one vote</h2>
+      <p className="hint">
+        Each model predicts the map on its own. Their answers are averaged with the weights below (in log-odds), so a confident model moves the
+        result more than an unsure one. Weights and settings were chosen on 2025 only; the blend went live because it also beat the single
+        logistic model on the 2026 season, which it never saw.
+      </p>
+      <ul className="parts">
+        {parts.map((p) => (
+          <li key={p.name} className="part">
+            <div className="part-head">
+              <strong>{p.label}</strong>
+              <span className="num">{pct(p.weight, 0)} of the vote</span>
+            </div>
+            <Bar value={p.weight} label={`${p.label}: ${pct(p.weight, 0)} of the vote`} tone="a" />
+            <p className="small-text muted">{p.detail}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Importance({ items }: { items: { feature: string; share: number }[] }) {
+  const sorted = [...items].filter((i) => i.share > 0).sort((a, b) => b.share - a.share);
+  if (!sorted.length) return null;
+  const max = Math.max(...sorted.map((i) => i.share));
+  return (
+    <>
+      <h3>Where the trees find signal</h3>
+      <p className="hint">Share of the LightGBM trees' total split gain per signal.</p>
+      <ul className="bars">
+        {sorted.map((i) => (
+          <li key={i.feature} className="bar-row">
+            <span className="bar-label">{featureLabel(i.feature)}</span>
+            <Bar value={i.share / max} label={`${featureLabel(i.feature)}: ${pct(i.share, 0)} of the gain`} tone="neutral" />
+            <span className="num bar-val">{pct(i.share, 0)}</span>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
@@ -139,7 +213,10 @@ export default function Model() {
           <li>Player ratings follow players when they change teams, so a new roster is not judged by the old one.</li>
           <li>Roster changes lower a team's rating a little and raise its uncertainty.</li>
           <li>Regions get an offset learned only from international matches, so regional ladders can be compared.</li>
-          <li>A simple logistic layer turns these signals into a map win chance, the same for either side order.</li>
+          <li>
+            Three models turn these signals into a map win chance: a logistic regression, LightGBM gradient-boosted trees and a small neural
+            network. Their answers are averaged, and the result is the same whichever side a team is on.
+          </li>
           <li>Series odds come from a simulated ban and pick phase on the current map pool.</li>
           <li>Your lenses never change the model number. They only build the blend shown next to it.</li>
         </ul>
@@ -150,6 +227,8 @@ export default function Model() {
 
       {data ? (
         <>
+          <Parts model={data.model} />
+
           <section className="card" aria-labelledby="bt-h">
             <h2 id="bt-h">Backtest</h2>
             {bt ? (
@@ -205,8 +284,14 @@ export default function Model() {
 
           <section className="card" aria-labelledby="coef-h">
             <h2 id="coef-h">What the model weighs</h2>
-            <p className="hint">Learned weights on the map model. Blue pushes toward team A, amber toward team B when the value is negative.</p>
+            <p className="hint">
+              {data.model.kind === "ensemble"
+                ? "Weights of the logistic regression, the part that can be read off directly. "
+                : "Learned weights on the map model. "}
+              Blue pushes toward team A, amber toward team B when the value is negative.
+            </p>
             <Coefs model={data.model} />
+            {data.model.importance?.length ? <Importance items={data.model.importance} /> : null}
           </section>
 
           {bt?.quality_gate ? (

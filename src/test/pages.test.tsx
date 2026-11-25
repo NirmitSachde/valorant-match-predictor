@@ -71,11 +71,34 @@ describe("pages (mock mode)", () => {
     expect(screen.getAllByText("Coin flip").length).toBeGreaterThan(0);
     expect(screen.getByRole("img", { name: /reliability chart/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /data freshness/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /2026 monthly walk-forward/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /2026 season, monthly walk-forward/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /2026 season, series winners/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /2027 season so far/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /mock masters one, map level/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /mock masters one, series level/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /quality gate/i })).toBeInTheDocument();
     expect(screen.getByText(/2026 walk-forward accuracy/i)).toBeInTheDocument();
+  });
+  it("model page shows the three models with their share of the vote and each one scored alone", async () => {
+    renderApp("/model");
+    const parts = (await screen.findByRole("heading", { name: /three models, one vote/i })).closest("section")!;
+    expect(within(parts).getByRole("img", { name: "Neural network: 50% of the vote" })).toBeInTheDocument();
+    expect(within(parts).getByRole("img", { name: "LightGBM gradient-boosted trees: 40% of the vote" })).toBeInTheDocument();
+    expect(within(parts).getByRole("img", { name: "Logistic regression: 10% of the vote" })).toBeInTheDocument();
+    for (const name of ["Neural network alone", "LightGBM alone", "Logistic regression alone"]) {
+      expect(screen.getByRole("rowheader", { name })).toBeInTheDocument();
+    }
+    expect(screen.getByRole("heading", { name: /where the trees find signal/i })).toBeInTheDocument();
+  });
+  it("model page without an ensemble shows no vote section", async () => {
+    const single = structuredClone(MOCK_MODEL);
+    single.model = { features: single.model.features, coefficients: single.model.coefficients, calibration_layer: null };
+    const spy = vi.spyOn(api, "model").mockResolvedValue(single);
+    renderApp("/model");
+    expect(await screen.findByRole("heading", { name: "Backtest" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /three models, one vote/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /where the trees find signal/i })).not.toBeInTheDocument();
+    spy.mockRestore();
   });
   it("model page tolerates a sparse backtest from a small bundle", async () => {
     const sparse = structuredClone(MOCK_MODEL);
@@ -92,7 +115,7 @@ describe("pages (mock mode)", () => {
     };
     const spy = vi.spyOn(api, "model").mockResolvedValue(sparse);
     renderApp("/model");
-    expect(await screen.findByRole("heading", { name: /2026 monthly walk-forward/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /2026 season, monthly walk-forward/i })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /quality gate/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /reliability/i })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /what the model weighs/i })).toBeInTheDocument();
